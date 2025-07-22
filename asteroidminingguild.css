@@ -73,7 +73,7 @@ body#ebd-body {
 
 .market_wrapper {
   background: slategray;
-  height: 25vh;
+  height: auto;
   width: 300px;
   border-radius: 8px;
 }
@@ -103,6 +103,9 @@ body#ebd-body {
   width: 100%;
   border: 1px solid red;
   height: 25vh;
+  display: flex;
+  align-items: start;
+  gap: 1em;
 }
 
 .box {
@@ -111,9 +114,47 @@ body#ebd-body {
     height: 20px;
 }
 
+.val_box_container.current .box{
+  background-color: steelblue;
+}
+
 .val_box_container {
   display: flex;
   flex-direction: row; 
   align-items: center;
   gap: 6px;
+}
+
+.asteroid {
+  height: 150px;
+  width: 150px;
+  border: 1px solid slategrey;
+  position: relative;
+}
+
+.cards {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+}
+
+.asteroid .card {
+  height: 120px;
+  width: 100px;
+  position: absolute;
+  background-color: lightgray;
+  border: 1px solid black;
+}
+
+.cards .card:nth-child(1) {
+  left: 0px;
+  z-index: 3;
+}
+.cards .card:nth-child(2) {
+  left: 15px;
+  z-index: 2;
+}
+.cards .card:nth-child(3) {
+  left: 30px;
+  z-index: 1;
 }

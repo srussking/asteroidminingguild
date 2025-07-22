@@ -52,25 +52,29 @@ function (dojo, declare) {
                 <div id="table"><div class="board_market_container"><div id="bidding_boards"></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
             `);
             var num_players = Object.entries(gamedatas.players).length
-            var pcv = playerCountVariables(num_players)
+            var pcv = gamedatas.player_count_variables
+            var market_col = gamedatas.market
+            var market = Object.entries(market_col)[0][1]
             var market_arr = [{col: "iron", inc: 2},{col: "lead", inc: 3},{col: "copper", inc: 4},{col: "gold", inc: 5}]
             for(var i = 0; i < market_arr.length; i++){
               var m = market_arr[i];
               var id = `market_column_${m.col}`
+              var curr_val = parseInt(market[m.col])
               document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"></div>`)
               for(var j = 0; j < (pcv.rounds + 4) ; j++){ //rounds + num jokers + starting value
+                var current = curr_val == j
                 var val = j * m.inc
-                document.getElementById(id).insertAdjacentHTML('beforeend',`<div id="${id}_${val}" class="val_box_container"><div class="box"></div><div class="value">${val}</div></div>`)
+                document.getElementById(id).insertAdjacentHTML('beforeend',`<div id="${id}_${val}" class="val_box_container ${current ? 'current': ''}"><div class="box"></div><div class="value">${val}</div></div>`)
               }
             }
 
-            
+
             
             // Setting up player boards
             Object.values(gamedatas.players).forEach(player => {
                 // example of setting up players boards
                 this.getPlayerPanelElement(player.id).insertAdjacentHTML('beforeend', `
-                    <div id="player_counter_${player.id}"><div class="space_bucks">50</div></div>
+                    <div id="player_counter_${player.id}"><div class="space_bucks">ß ${player.money}</div></div>
                 `);
 
                 // example of adding a div for each player
@@ -91,18 +95,17 @@ function (dojo, declare) {
             console.log( "Ending game setup" );
         },
 
-        playerCountVariables: function(num){
-          if(num === 3){
-            return {cards: 3, boards: 2, rounds: 9}
-          } else if (num === 4){
-             return {cards: 2,boards: 3, rounds: 9}
-          } else if (num === 5){
-             return {cards: 2, boards: 4, rounds: 6}
-          } else {
-             return {cards: 2, boards: 5, rounds: 5}
-          }
-        }
-       
+        setupNewAsteroids: function(args){ 
+          console.log("add new asteroids", args);
+          var last_asteroid = -1
+          args.cards.map(function(v){ 
+            if(v.card_location_arg != last_asteroid){
+              last_asteroid = v.card_location_arg
+              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
+            }
+            document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
+          })
+        },
 
         ///////////////////////////////////////////////////
         //// Game & client states
@@ -116,21 +119,21 @@ function (dojo, declare) {
             
             switch( stateName )
             {
+            case 'newAsteroids':
+              this.setupNewAsteroids(args.args)
+              break;
+            case 'argDeepScan':
+              console.log("argDeepScan",args);
+              break;
             
-            /* Example:
             
-            case 'myGameState':
-            
-                // Show some HTML block at this game state
-                dojo.style( 'my_html_block_id', 'display', 'block' );
-                
-                break;
-           */
-           
-           
             case 'dummy':
                 break;
-            }
+            
+            default:
+              console.log("missing game state", stateName,args)
+          }
+          
         },
 
         // onLeavingState: this method is called each time we are leaving a game state.

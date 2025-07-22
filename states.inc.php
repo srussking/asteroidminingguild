@@ -59,7 +59,7 @@ $machinestates = [
         "description" => "",
         "type" => "manager",
         "action" => "stGameSetup",
-        "transitions" => ["" => 2]
+        "transitions" => ["newAsteroids" => 2]
     ),
 
     // Note: ID=2 => your first state
@@ -69,7 +69,8 @@ $machinestates = [
         "type" => "game",
         "action" => "stNewAsteroids",
         "updateGameProgression" => true,
-        "transitions" => ["" => 10]
+        "args" => "getAsteroids",
+        "transitions" => ["deepScan" => 10]
     ],
 
 
@@ -78,7 +79,7 @@ $machinestates = [
         "description" => clienttranslate('${actplayer} must select an asteroid to scan'),
         "descriptionmyturn" => clienttranslate('${you} must select an asteroid to scan'),
         "type" => "activeplayer",
-        "args" => "argDeepScan",
+        "possibleactions" => array( 'actScan' ),
         "transitions" => ["reorderBoard" => 11]
     ],
 

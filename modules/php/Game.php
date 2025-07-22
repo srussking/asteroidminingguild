@@ -22,6 +22,8 @@ require_once(APP_GAMEMODULE_PATH . "module/table/table.game.php");
 
 class Game extends \Table
 {
+    private $cards;
+    private static array $CARD_SUITS;
     private static array $CARD_TYPES;
 
     /**
@@ -45,14 +47,42 @@ class Game extends \Table
             "my_second_game_variant" => 101,
         ]);        
 
-        self::$CARD_TYPES = [
+        $this->cards = $this->getNew("module.common.deck");
+        $this->cards->init("card");
+
+        self::$CARD_SUITS = [
             1 => [
-                "card_name" => clienttranslate('Troll'), // ...
+                'name' => clienttranslate('Iron'),
             ],
             2 => [
-                "card_name" => clienttranslate('Goblin'), // ...
+                'name' => clienttranslate('Lead'),
             ],
-            // ...
+            3 => [
+                'name' => clienttranslate('Copper'),
+            ],
+            4 => [
+                'name' => clienttranslate('Gold'),
+            ],
+            5 => [
+                'name' => clienttranslate('Joker'),
+            ]
+        ];
+
+        self::$CARD_TYPES = [
+            1 => ['name' => '1'],
+            2 => ['name' => '2'],
+            3 => ['name' => '3'],
+            4 => ['name' => '4'],
+            5 => ['name' => '5'],
+            6 => ['name' => '6'],
+            7 => ['name' => '7'],
+            8 => ['name' => '8'],
+            9 => ['name' => '9'],
+            10 => ['name' => '10'],
+            11 => ['name' => '-5'],
+            12 => ['name' => '-10'],
+            13 => ['name' => '-15'],
+            99 => ['name' => 'Joker']
         ];
 
         /* example of notification decorator.
@@ -149,11 +179,14 @@ class Game extends \Table
      * @return int
      * @see ./states.inc.php
      */
-    public function getGameProgression()
-    {
-        // TODO: compute and return the game progression
+    public function getGameProgression(): int {
+        $playerCount = $this->getPlayersNumber();
+        $vars = $this->getPlayerCountVariables($playerCount);
+        $rounds = $vars['rounds'];
+        $asteroid_count = (int) self::getUniqueValueFromDb("SELECT COUNT(asteroid_id) FROM asteroid");
+        $asteroids_per_round = $vars['boards'];
 
-        return 0;
+        return (int) round((($asteroid_count / $asteroids_per_round ) / $rounds) * 100);
     }
 
     /**
@@ -161,7 +194,7 @@ class Game extends \Table
      *
      * The action method of state `nextPlayer` is called everytime the current game state is set to `nextPlayer`.
      */
-    public function stNextPlayer(): void {
+    public function stNextDeepScan(): void {
         // Retrieve the active player ID.
         $player_id = (int)$this->getActivePlayerId();
 
@@ -173,6 +206,54 @@ class Game extends \Table
         // Go to another gamestate
         // Here, we would detect if the game is over, and in this case use "endGame" transition instead 
         $this->gamestate->nextState("nextPlayer");
+    }
+
+    public function getAsteroids(): array {
+      $result = [];
+      $result['cards'] = $this->getObjectListFromDB("
+          SELECT `card_id`, `card_order`, `card_location_arg`
+          FROM `card`
+          WHERE `card_location` = 'asteroid'
+          ORDER BY card_location_arg ASC, card_order ASC
+      ");
+      return $result;
+    }
+
+    public function stNewAsteroids(): void {
+      // Get card count per asteroid based on player count
+      $playerCount = $this->getPlayersNumber();
+      $vars = $this->getPlayerCountVariables($playerCount);
+      $cardsPerAsteroid = $vars['cards'];
+
+      // Create asteroids
+      for ($i = 0; $i < $vars['boards']; $i++) {
+          // Insert asteroid into DB
+          $this->DbQuery("INSERT INTO asteroid (location) VALUES ('space')");
+          $asteroidId = $this->DbGetLastId();
+
+          // Put cards on asteroids
+          $this->drawCards($cardsPerAsteroid, 'asteroid', $asteroidId);  // Your function to get random cards
+      }
+    }
+
+    // public function actDeepScan(int $id)
+    // {
+    //     self::checkAction('actDeepScan');
+
+    //     $playerId = self::getActivePlayerId();
+
+    //     // Do whatever is needed for the deep scan...
+    //     // e.g., selecting an asteroid, updating state, notifying players, etc.
+
+    //     $this->gamestate->nextState('reorderBoard');
+    // }
+
+    public function actDeepScan(int $id): array {
+      return [];
+    }
+
+    public function argReorderBoard(array $card_ids): void {
+      error_log("New id order: " . print_r($card_ids, true));
     }
 
     /**
@@ -223,13 +304,29 @@ class Game extends \Table
         // Get information about players.
         // NOTE: you can retrieve some extra field you added for "player" table in `dbmodel.sql` if you need it.
         $result["players"] = $this->getCollectionFromDb(
-            "SELECT `player_id` `id`, `player_score` `score` FROM `player`"
+            "SELECT `player_id` `id`, `player_score` `score`, `money` FROM `player`"
         );
+
+        $result["player_count_variables"] = $this->getPlayerCountVariables($this->getPlayersNumber());
+        $result["market"] = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
+
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
         return $result;
     }
+
+  protected function getPlayerCountVariables($num): array {
+    if ($num === 3) {
+        return ['cards' => 3, 'boards' => 2, 'rounds' => 9];
+    } else if ($num === 4) {
+        return ['cards' => 2, 'boards' => 3, 'rounds' => 9];
+    } else if ($num === 5) {
+        return ['cards' => 2, 'boards' => 4, 'rounds' => 6];
+    } else {
+        return ['cards' => 2, 'boards' => 5, 'rounds' => 5];
+    }
+  }
 
     /**
      * Returns the game name.
@@ -254,12 +351,13 @@ class Game extends \Table
 
         foreach ($players as $player_id => $player) {
             // Now you can access both $player_id and $player array
-            $query_values[] = vsprintf("('%s', '%s', '%s', '%s', '%s')", [
+            $query_values[] = vsprintf("('%s', '%s', '%s', '%s', '%s', '%s')", [
                 $player_id,
                 array_shift($default_colors),
                 $player["player_canal"],
                 addslashes($player["player_name"]),
                 addslashes($player["player_avatar"]),
+                50
             ]);
         }
 
@@ -269,18 +367,39 @@ class Game extends \Table
         // additional fields directly here.
         static::DbQuery(
             sprintf(
-                "INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar) VALUES %s",
+                "INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar, money) VALUES %s",
                 implode(",", $query_values)
             )
         );
+
+        static::DbQuery("INSERT INTO market (iron, lead, copper, gold) VALUES (2,2,2,2)");
 
         $this->reattributeColorsBasedOnPreferences($players, $gameinfos["player_colors"]);
         $this->reloadPlayersBasicInfos();
 
         // Init global values with their initial values.
 
-        // Dummy content.
-        $this->setGameStateInitialValue("my_first_global_variable", 0);
+        // Setup deck
+        $cards = [];
+
+        foreach (self::$CARD_SUITS as $suit => $suitInfo) {
+            if ($suit != 5) {  // Exclude joker suit from normal cards
+                foreach (self::$CARD_TYPES as $value => $valueInfo) {
+                    if ($value <= 13) {
+                        $cards[] = [
+                            'type' => $suit,
+                            'type_arg' => $value,
+                            'nbr' => 1
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Add 2 jokers
+        $cards[] = [ 'type' => 5, 'type_arg' => 99, 'nbr' => 2 ];
+
+        $this->cards->createCards($cards, 'deck');
 
         // Init game statistics.
         //
@@ -294,7 +413,36 @@ class Game extends \Table
 
         // Activate first player once everything has been initialized and ready.
         $this->activeNextPlayer();
+
+        $this->gamestate->nextState("newAsteroids");
     }
+
+    function drawCards($numCards, $to_location = 'hand', $location_arg = null) {
+      $cards = $this->cards->pickCardsForLocation($numCards, 'deck', $to_location, $location_arg);
+
+      // Only apply ordering if cards are being sent to an asteroid
+      if ($to_location === 'asteroid' && $location_arg !== null) {
+          // Get current max order for this asteroid
+          $maxOrder = (int) self::getUniqueValueFromDb("
+              SELECT IFNULL(MAX(card_order), 0)
+              FROM card
+              WHERE card_location = 'asteroid' AND card_location_arg = $location_arg
+          ");
+
+          foreach ($cards as $card) {
+              $maxOrder++;
+              $cardId = (int) $card['id'];
+
+              $this->DbQuery("
+                  UPDATE card
+                  SET card_order = $maxOrder
+                  WHERE card_id = $cardId
+              ");
+          }
+      }
+
+      return $cards;   
+ }
 
     /**
      * This method is called each time it is the turn of a player who has quit the game (= "zombie" player).
