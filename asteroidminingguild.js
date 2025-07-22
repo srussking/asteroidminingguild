@@ -119,11 +119,8 @@ function (dojo, declare) {
             
             switch( stateName )
             {
-            case 'newAsteroids':
-              this.setupNewAsteroids(args.args)
-              break;
-            case 'argDeepScan':
-              console.log("argDeepScan",args);
+            case 'deepScan':
+              this.setupNewAsteroids(args.args);
               break;
             
             
