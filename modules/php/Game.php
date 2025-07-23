@@ -236,21 +236,44 @@ class Game extends \Table
       }
     }
 
-    // public function actDeepScan(int $id)
-    // {
-    //     self::checkAction('actDeepScan');
+  public function actDeepScan(int $id): void {
+    self::checkAction('actDeepScan');
 
-    //     $playerId = self::getActivePlayerId();
+    $player_id = self::getActivePlayerId();
 
-    //     // Do whatever is needed for the deep scan...
-    //     // e.g., selecting an asteroid, updating state, notifying players, etc.
+    $this->notifyAllPlayers(
+      "deepScan",
+      clienttranslate('${player_name} reveals asteroid ${asteroid_id}'),
+      [
+        'player_id' => $player_id,
+        'player_name' => $this->getActivePlayerName(),
+        'asteroid_id' => $id
+      ]
+    );
 
-    //     $this->gamestate->nextState('reorderBoard');
-    // }
+    // Get cards associated with the asteroid
+    $cards_for_asteroid = $this->getObjectListFromDB("
+      SELECT *
+      FROM `card`
+      WHERE `card_location` = 'asteroid' AND `card_location_arg` = $id
+      ORDER BY `card_location_arg` ASC, `card_order` ASC
+    ");
 
-    public function actDeepScan(int $id): array {
-      return [];
-    }
+    // TODO: Fix knowledge update — requires structured JSON update, not this
+    // Placeholder (you should use proper JSON encoding per player)
+    $cards_json = json_encode($cards_for_asteroid);
+
+    $sql = "UPDATE `player`
+            SET `knowledge` = '" . self::escapeStringForDB($cards_json) . "'
+            WHERE `player_id` = $player_id";
+    $this->DbQuery($sql);
+
+    $this->notifyPlayer($player_id, 'deepScanResult', '', [
+        'cards' => $cards_for_asteroid
+    ]);
+  }
+
+
 
     public function argReorderBoard(array $card_ids): void {
       error_log("New id order: " . print_r($card_ids, true));
@@ -400,6 +423,7 @@ class Game extends \Table
         $cards[] = [ 'type' => 5, 'type_arg' => 99, 'nbr' => 2 ];
 
         $this->cards->createCards($cards, 'deck');
+        $this->cards->shuffle('deck');
 
         // Init game statistics.
         //
@@ -418,31 +442,38 @@ class Game extends \Table
     }
 
     function drawCards($numCards, $to_location = 'hand', $location_arg = null) {
-      $cards = $this->cards->pickCardsForLocation($numCards, 'deck', $to_location, $location_arg);
+        $cards = $this->cards->pickCardsForLocation($numCards, 'deck', $to_location, $location_arg);
 
-      // Only apply ordering if cards are being sent to an asteroid
-      if ($to_location === 'asteroid' && $location_arg !== null) {
-          // Get current max order for this asteroid
-          $maxOrder = (int) self::getUniqueValueFromDb("
-              SELECT IFNULL(MAX(card_order), 0)
-              FROM card
-              WHERE card_location = 'asteroid' AND card_location_arg = $location_arg
-          ");
+        // Only apply ordering if cards are being sent to an asteroid
+        if ($to_location === 'asteroid' && $location_arg !== null) {
+            // Re-index and shuffle
+            $cards = array_values($cards);
+            shuffle($cards);
 
-          foreach ($cards as $card) {
-              $maxOrder++;
-              $cardId = (int) $card['id'];
+            // Start ordering from 1 for this asteroid
+            $order = 1;
 
-              $this->DbQuery("
-                  UPDATE card
-                  SET card_order = $maxOrder
-                  WHERE card_id = $cardId
-              ");
-          }
-      }
+            foreach ($cards as $card) {
+                $card_id = (int) $card['id'];
 
-      return $cards;   
- }
+                $this->DbQuery("
+                    UPDATE card
+                    SET card_order = $order
+                    WHERE card_id = $card_id
+                ");
+
+                $order++;
+            }
+        }
+
+        // Debug: log the final shuffled order
+        foreach ($cards as $card) {
+            error_log("Card picked: ID={$card['id']} type={$card['type']} value={$card['type_arg']}");
+        }
+
+        return $cards;
+    }
+
 
     /**
      * This method is called each time it is the turn of a player who has quit the game (= "zombie" player).

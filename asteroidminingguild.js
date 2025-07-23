@@ -86,7 +86,8 @@ function (dojo, declare) {
                 `);
             });
             
-            // TODO: Set up your game interface here, according to "gamedatas"
+            document.getElementById('close_modal_button').addEventListener('click', this.close_modal)
+            document.getElementById('modal_overlay').addEventListener('click', this.close_modal)
             
  
             // Setup game notifications to handle (see "setupNotifications" method below)
@@ -101,10 +102,20 @@ function (dojo, declare) {
           args.cards.map(function(v){ 
             if(v.card_location_arg != last_asteroid){
               last_asteroid = v.card_location_arg
-              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
+              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
             }
             document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
           })
+
+          document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e)));
+        },
+
+        onClickAsteroid: function(e){
+          var el = e.currentTarget
+          var asteroid_id = el.getAttribute('data-id')
+          this.bgaPerformAction("actDeepScan", { 
+              id: asteroid_id,
+          });       
         },
 
         ///////////////////////////////////////////////////
@@ -251,7 +262,32 @@ function (dojo, declare) {
             // dojo.subscribe( 'cardPlayed', this, "notif_cardPlayed" );
             // this.notifqueue.setSynchronous( 'cardPlayed', 3000 );
             // 
+          dojo.subscribe('deepScanResult', this, 'notif_deepScanResult');
+          this.notifqueue.setSynchronous('deepScanResult', 100);
+      
         },  
+
+        notif_deepScanResult: function (notif) {
+          var cards = notif.args.cards
+          var html = '<ul style="list-style:none; padding:0;">';
+          cards.forEach(card => {
+            html += `<li>Suit ${card.card_type}, Value ${card.card_type_arg}</li>`;
+          });
+          html += '</ul>';
+
+          this.show_modal('Asteroid Revealed', html);
+        }, 
+
+        show_modal: function (title, content_html) {
+          dojo.byId('modal_title').innerHTML = title;
+          dojo.byId('modal_content').innerHTML = content_html;
+          dojo.style('modal_overlay', 'display', 'flex');
+        },
+
+        close_modal: function () {
+          dojo.style('modal_overlay', 'display', 'none');
+        }
+
         
         // TODO: from this point and below, you can write your game notifications handling methods
         
