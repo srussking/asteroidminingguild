@@ -88,9 +88,9 @@ $machinestates = [
         "description" => clienttranslate('${actplayer} may reorder cards'),
         "descriptionmyturn" => clienttranslate('${you} may reorder cards'),
         "type" => "activeplayer",
-        "args" => "argReorderBoard",
-        "possibleactions" => ["reorder", "pass"],
-        "transitions" => ["" => 12]
+        "args" => "getKnowledge",
+        "possibleactions" => ["actReorder"],
+        "transitions" => ["nextDeepScan" => 12]
     ],
     
     12 => [
@@ -99,7 +99,7 @@ $machinestates = [
         "type" => "game",
         "action" => "stNextDeepScan",
         "updateGameProgression" => true,
-        "transitions" => ["surfaceScan" => 20, "nextPlayer" => 10 ]
+        "transitions" => ["surfaceScan" => 20, "deepScan" => 10 ]
     ],
 
     20 => [

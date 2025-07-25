@@ -86,9 +86,7 @@ function (dojo, declare) {
                 `);
             });
             
-            document.getElementById('close_modal_button').addEventListener('click', this.close_modal)
-            document.getElementById('modal_overlay').addEventListener('click', this.close_modal)
-            
+            document.getElementById('close_modal_button').addEventListener('click', this.close_modal)            
  
             // Setup game notifications to handle (see "setupNotifications" method below)
             this.setupNotifications();
@@ -96,7 +94,7 @@ function (dojo, declare) {
             console.log( "Ending game setup" );
         },
 
-        setupNewAsteroids: function(args){ 
+        setupNewAsteroids: function(args, reorder){ 
           console.log("add new asteroids", args);
           var last_asteroid = -1
           args.cards.map(function(v){ 
@@ -106,8 +104,18 @@ function (dojo, declare) {
             }
             document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
           })
+          if(reorder){
+            var knowledge = JSON.parse(args.knowledge[0].knowledge)
+            this.notif_deepScanResult({args: {cards: knowledge}})
+            var cur_asteroid = knowledge[0].card_location_arg
+            document.getElementById(`asteroid_${cur_asteroid}`).addEventListener('click', e => this.reopenAsteroid(knowledge))
+          } else {
+            document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e)));
+          }
+        },
 
-          document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e)));
+        reopenAsteroid: function(knowledge){
+          this.notif_deepScanResult({args: {cards: knowledge}})
         },
 
         onClickAsteroid: function(e){
@@ -131,9 +139,12 @@ function (dojo, declare) {
             switch( stateName )
             {
             case 'deepScan':
-              this.setupNewAsteroids(args.args);
+              this.setupNewAsteroids(args.args,false);
               break;
-            
+            case 'reorderBoard': 
+              this.setupNewAsteroids(args.args,true);
+              break;
+
             
             case 'dummy':
                 break;
@@ -269,14 +280,60 @@ function (dojo, declare) {
 
         notif_deepScanResult: function (notif) {
           var cards = notif.args.cards
-          var html = '<ul style="list-style:none; padding:0;">';
+          var html = '<ul id="card_list" style="list-style:none; padding:0;">';
           cards.forEach(card => {
-            html += `<li>Suit ${card.card_type}, Value ${card.card_type_arg}</li>`;
+            html += `<li data-id='${card.card_id}'><button class="move_up_button">^</button> ${this.getCardReadout(card)}</li>`;
           });
           html += '</ul>';
 
+          html += '<button id="reorder_done">DONE</button>'
+      
           this.show_modal('Asteroid Revealed', html);
+          this.attachMoveUpHandlers();
+          this.updateMoveUpButtons();
+          document.getElementById('reorder_done').addEventListener('click',(e) => {
+             this.onReorderDone(e)
+          })
         }, 
+
+        getCardReadout: function(card) {
+          return `Suit ${card.card_type}, Value ${card.card_type_arg}`
+        },
+
+        onReorderDone: function(e){
+          var ids = []
+          document.querySelectorAll('#card_list li').forEach(e => {
+            ids.push(e.getAttribute('data-id'))
+          })
+          this.bgaPerformAction("actReorder", { 
+              ids: ids.join(',')
+          }); 
+        },
+
+         updateMoveUpButtons: function() {
+            const listItems = document.querySelectorAll('#card_list li');
+            listItems.forEach((li, index) => {
+                const btn = li.querySelector('.move_up_button');
+                if (btn) {
+                    btn.disabled = index === 0;
+                }
+            });
+        },
+
+        attachMoveUpHandlers: function() {
+          var that = this;
+            document.querySelectorAll('.move_up_button').forEach(button => {
+                button.addEventListener('click', function (e) {
+                  e.preventDefault()
+                    const li = this.closest('li');
+                    const prev = li.previousElementSibling;
+                    if (prev) {
+                        li.parentNode.insertBefore(li, prev);
+                        that.updateMoveUpButtons();
+                    }
+                });
+            });
+        },
 
         show_modal: function (title, content_html) {
           dojo.byId('modal_title').innerHTML = title;

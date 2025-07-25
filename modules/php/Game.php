@@ -198,14 +198,30 @@ class Game extends \Table
         // Retrieve the active player ID.
         $player_id = (int)$this->getActivePlayerId();
 
-        // Give some extra time to the active player when he completed an action
+        // Give some extra time to the active player when they completed an action
         $this->giveExtraTime($player_id);
         
         $this->activeNextPlayer();
 
         // Go to another gamestate
         // Here, we would detect if the game is over, and in this case use "endGame" transition instead 
-        $this->gamestate->nextState("nextPlayer");
+        $this->gamestate->nextState("deepScan");
+    }
+
+    public function getKnowledge(): array {
+      $player_id = (int)$this->getActivePlayerId();
+      $result = [];
+      $result['knowledge'] = $this->getObjectListFromDB("
+        SELECT `knowledge` 
+        FROM `player` 
+        WHERE  `player_id` = $player_id");
+      $result['cards'] = $this->getObjectListFromDB("
+          SELECT `card_id`, `card_order`, `card_location_arg`
+          FROM `card`
+          WHERE `card_location` = 'asteroid'
+          ORDER BY card_location_arg ASC, card_order ASC
+      ");
+      return $result;
     }
 
     public function getAsteroids(): array {
@@ -235,6 +251,32 @@ class Game extends \Table
           $this->drawCards($cardsPerAsteroid, 'asteroid', $asteroidId);  // Your function to get random cards
       }
     }
+
+
+  public function actReorder(string $ids): void {
+    self::checkAction('actReorder');
+
+    $ordered_ids = array_map('intval', explode(',', $ids));
+
+    $order = 1;
+    foreach ($ordered_ids as $card_id) {
+        $this->DbQuery("
+            UPDATE card
+            SET card_order = $order
+            WHERE card_id = $card_id
+        ");
+        $order++;
+    }
+    $this->notifyAllPlayers(
+      "deepScan",
+      clienttranslate('${player_name} may have reordered the asteroid'),
+      [
+        'player_name' => $this->getActivePlayerName()
+      ]
+    );
+
+    $this->gamestate->nextState("nextDeepScan");
+  }
 
   public function actDeepScan(int $id): void {
     self::checkAction('actDeepScan');
@@ -271,6 +313,9 @@ class Game extends \Table
     $this->notifyPlayer($player_id, 'deepScanResult', '', [
         'cards' => $cards_for_asteroid
     ]);
+
+    $this->gamestate->nextState("reorderBoard");
+
   }
 
 

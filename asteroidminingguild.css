@@ -195,3 +195,15 @@ body#ebd-body {
 #modal_container .close_button:hover {
   color: #000;
 }
+
+#card_list li {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+#card_list li button {
+  width: 20px;
+  height: 24px;
+  border-radius: 5px;
+}
