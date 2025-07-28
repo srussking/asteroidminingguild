@@ -85,6 +85,14 @@ function (dojo, declare) {
                     </div>
                 `);
             });
+            var last_asteroid = -1;
+            gamedatas.cards.map(function(v){ 
+              if(v.card_location_arg != last_asteroid){
+                last_asteroid = v.card_location_arg
+                document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
+              }
+              document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
+            })
             
             document.getElementById('close_modal_button').addEventListener('click', this.close_modal)            
  
@@ -94,36 +102,58 @@ function (dojo, declare) {
             console.log( "Ending game setup" );
         },
 
-        setupNewAsteroids: function(args, reorder){ 
-          console.log("add new asteroids", args);
-          var last_asteroid = -1
-          args.cards.map(function(v){ 
-            if(v.card_location_arg != last_asteroid){
-              last_asteroid = v.card_location_arg
-              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
-            }
-            document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
-          })
-          if(reorder){
+        setupAsteroidListeners: function(args, reorder){ 
+          console.log(`setup asteroid listeners`)
+          if(reorder && this.isCurrentPlayerActive()){
+            console.log(args.knowledge)
             var knowledge = JSON.parse(args.knowledge[0].knowledge)
-            this.notif_deepScanResult({args: {cards: knowledge}})
-            var cur_asteroid = knowledge[0].card_location_arg
+            this.notif_deepScanResult({args: {cards: knowledge.deep_scan.cards}})
+            var cur_asteroid = knowledge.deep_scan.asteroid
             document.getElementById(`asteroid_${cur_asteroid}`).addEventListener('click', e => this.reopenAsteroid(knowledge))
+          } else if(this.isCurrentPlayerActive()){
+            document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e, "actDeepScan")));
           } else {
-            document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e)));
+            //no listeners for you cove
           }
+        },
+
+        setupSurfaceScanListeners: function(){
+          document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e, "actSurfaceScan")));
+        },
+
+        displaySurfaceScan: function(args){
+          if(this.isCurrentPlayerActive()){
+            var knowledge = JSON.parse(args.args.knowledge[0].knowledge)
+            var surface_scan = knowledge.surface_scan
+            console.log("surface scan", surface_scan)
+            this.notif_surfaceScanResult({args: {card: surface_scan.card}})
+            document.getElementById(`asteroid_${surface_scan.asteroid}`).addEventListener('click', e => this.reopenAsteroid(surface_scan))
+          }
+        },
+
+        reopenSurfaceScan: function(surface_scan){
+          this.notif_surfaceScanResult({args: {card: surface_scan.card}})
         },
 
         reopenAsteroid: function(knowledge){
           this.notif_deepScanResult({args: {cards: knowledge}})
         },
 
-        onClickAsteroid: function(e){
+        onClickAsteroid: function(e, action){
           var el = e.currentTarget
           var asteroid_id = el.getAttribute('data-id')
-          this.bgaPerformAction("actDeepScan", { 
+          this.bgaPerformAction(action, { 
               id: asteroid_id,
           });       
+        },
+
+        nextDeepScan: function(){
+          this.close_modal();
+          //remove any click listeners
+          document.querySelectorAll('.asteroid').forEach(el => {
+            const newDiv = el.cloneNode(true); // true clones child elements too
+            el.parentNode.replaceChild(newDiv, el);
+          });
         },
 
         ///////////////////////////////////////////////////
@@ -139,10 +169,19 @@ function (dojo, declare) {
             switch( stateName )
             {
             case 'deepScan':
-              this.setupNewAsteroids(args.args,false);
+              this.setupAsteroidListeners(args.args,false);
               break;
             case 'reorderBoard': 
-              this.setupNewAsteroids(args.args,true);
+              this.setupAsteroidListeners(args.args,true);
+              break;
+            case 'nextDeepScan':
+              this.nextDeepScan()
+              break;
+            case 'surfaceScan':
+              this.setupSurfaceScanListeners();
+              break;
+            case 'displaySurfaceScan':
+              this.displaySurfaceScan(args);
               break;
 
             
@@ -275,25 +314,51 @@ function (dojo, declare) {
             // 
           dojo.subscribe('deepScanResult', this, 'notif_deepScanResult');
           this.notifqueue.setSynchronous('deepScanResult', 100);
+
+          dojo.subscribe('surfaceScanResult', this, 'notif_surfaceScanResult');
+          this.notifqueue.setSynchronous('surfaceScanResult', 100);
       
         },  
 
-        notif_deepScanResult: function (notif) {
-          var cards = notif.args.cards
-          var html = '<ul id="card_list" style="list-style:none; padding:0;">';
-          cards.forEach(card => {
-            html += `<li data-id='${card.card_id}'><button class="move_up_button">^</button> ${this.getCardReadout(card)}</li>`;
-          });
-          html += '</ul>';
-
-          html += '<button id="reorder_done">DONE</button>'
-      
-          this.show_modal('Asteroid Revealed', html);
-          this.attachMoveUpHandlers();
-          this.updateMoveUpButtons();
-          document.getElementById('reorder_done').addEventListener('click',(e) => {
-             this.onReorderDone(e)
+        notif_surfaceScanResult: function(notif){
+          console.log("surface scan result", notif)
+          var card = notif.args.card[0]
+          var html = (`<ul id="card_list" style="list-style:none; padding:0;">
+                        <li data-id='${card.card_id}'>${this.getCardReadout(card)}</li>
+                      </ul>
+                      <button id="surface_scan_seen">DONE</button>
+                      `);
+          this.show_modal('Top card revealed', html);
+          document.getElementById('surface_scan_seen').addEventListener('click',(e) => {
+            this.onSurfaceScanDone(e)
           })
+        },
+
+        onSurfaceScanDone: function(e){
+          e.preventDefault()
+          this.bgaPerformAction("actSurfaceScanSeen"); 
+          this.close_modal();
+        },
+
+
+        notif_deepScanResult: function (notif) {
+          if(this.isCurrentPlayerActive()){
+            var cards = notif.args.cards
+            var html = '<ul id="card_list" style="list-style:none; padding:0;">';
+            cards.forEach(card => {
+              html += `<li data-id='${card.card_id}'><button class="move_up_button">^</button> ${this.getCardReadout(card)}</li>`;
+            });
+            html += '</ul>';
+
+            html += '<button id="reorder_done">DONE</button>'
+
+            this.show_modal('Asteroid Revealed', html);
+            this.attachMoveUpHandlers();
+            this.updateMoveUpButtons();
+            document.getElementById('reorder_done').addEventListener('click',(e) => {
+              this.onReorderDone(e)
+            })
+          }
         }, 
 
         getCardReadout: function(card) {

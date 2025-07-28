@@ -59,7 +59,7 @@ $machinestates = [
         "description" => "",
         "type" => "manager",
         "action" => "stGameSetup",
-        "transitions" => ["newAsteroids" => 2]
+        "transitions" => ["" => 10]
     ),
 
     // Note: ID=2 => your first state
@@ -68,18 +68,18 @@ $machinestates = [
         "description" => '',
         "type" => "game",
         "action" => "stNewAsteroids",
-        "updateGameProgression" => true,
         "transitions" => ["" => 10]
     ],
 
 
     10 => [
         "name" => "deepScan",
-        "description" => clienttranslate('${actplayer} must select an asteroid to scan'),
-        "descriptionmyturn" => clienttranslate('${you} must select an asteroid to scan'),
+        "description" => clienttranslate('${actplayer} must select an asteroid for a deep scan'),
+        "descriptionmyturn" => clienttranslate('${you} must select an asteroid for a deep scan'),
         "type" => "activeplayer",
-         "args" => "getAsteroids",
-        "possibleactions" => array( 'actDeepScan', 'actReorderBoard' ),
+        "action" => "stDeepScan",
+        "args" => "getAsteroids", 
+        "possibleactions" => array( 'actDeepScan' ),
         "transitions" => ["reorderBoard" => 11]
     ],
 
@@ -104,28 +104,26 @@ $machinestates = [
 
     20 => [
         "name" => "surfaceScan",
-        "description" => clienttranslate('${actplayer} must select an asteroid to scan'),
-        "descriptionmyturn" => clienttranslate('${you} must select an asteroid to scan'),
+        "description" => clienttranslate('${actplayer} must select an asteroid for a surface scan'),
+        "descriptionmyturn" => clienttranslate('${you} must select an asteroid for a surface scan'),
         "type" => "activeplayer",
-        "args" => "argPlayerTurn",
+        "args" => "getAsteroids",
+        "updateGameProgression" => true,
         "possibleactions" => [
             // these actions are called from the front with bgaPerformAction, and matched to the function on the game.php file
-            "surfaceScan", 
+            "actSurfaceScan", 
         ],
-        "transitions" => ["" => 21]
+        "transitions" => ["displaySurfaceScan" => 21]
     ],
 
     21 => [
-      "name" => "surfaceScan",
-      "description" => clienttranslate('${actplayer} is viewing '),
-      "descriptionmyturn" => clienttranslate('${you} must '),
+      "name" => "displaySurfaceScan",
+      "description" => clienttranslate('${actplayer} is viewing the top card'),
+      "descriptionmyturn" => clienttranslate('${you} are viewing the top card '),
       "type" => "activeplayer",
-      "args" => "argPlayerTurn",
-      "possibleactions" => [
-          // these actions are called from the front with bgaPerformAction, and matched to the function on the game.php file
-          "surfaceScan", 
-      ],
-      "transitions" => ["" => 22]
+      "args" => "getKnowledge",
+      "possibleactions" => ["actSurfaceScanSeen"],
+      "transitions" => ["nextSurfaceScan" => 22]
   ],
 
   22 => [
@@ -134,7 +132,7 @@ $machinestates = [
     "type" => "game",
     "action" => "stNextSurfaceScan",
     "updateGameProgression" => true,
-    "transitions" => ["stAuction" => 30, "nextPlayer" => 20 ]
+    "transitions" => ["auction" => 30, "surfaceScan" => 20 ]
   ],
 
   30 => [

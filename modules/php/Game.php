@@ -203,9 +203,99 @@ class Game extends \Table
         
         $this->activeNextPlayer();
 
-        // Go to another gamestate
-        // Here, we would detect if the game is over, and in this case use "endGame" transition instead 
-        $this->gamestate->nextState("deepScan");
+        $sql = "SELECT count(*) AS cnt
+                FROM `player`
+                WHERE `knowledge`->'$.deep_scan.cards' IS NOT NULL";
+
+        $row = $this->getObjectFromDB($sql); // fetches as an associative array
+
+        $players_done_ds = intval($row['cnt']);
+
+        if ($players_done_ds < $this->getPlayersNumber()) {
+            $this->gamestate->nextState("deepScan");
+        } else {
+            $this->gamestate->nextState("surfaceScan");
+        }        
+    }
+
+      public function stNextSurfaceScan(): void {
+        // Retrieve the active player ID.
+        $player_id = (int)$this->getActivePlayerId();
+
+        // Give some extra time to the active player when they completed an action
+        $this->giveExtraTime($player_id);
+        
+        $this->activeNextPlayer();
+
+        $sql = "SELECT count(*) AS cnt
+                FROM `player`
+                WHERE `knowledge`->'$.surface_scan.card' IS NOT NULL";
+
+        $row = $this->getObjectFromDB($sql); // fetches as an associative array
+
+        $players_done_ds = intval($row['cnt']);
+
+        if ($players_done_ds < $this->getPlayersNumber()) {
+            $this->gamestate->nextState("surfaceScan");
+        } else {
+            $this->gamestate->nextState("auction");
+        }        
+    }
+
+    function stNewAsteroids() {
+        // logic here, or just make it a pass-through for now
+        $this->gamestate->nextState('deepScan');
+    }
+
+    function stDeepScan() {
+        // logic here, or just make it a pass-through for now
+        
+    }
+
+
+    public function actSurfaceScan(int $id){
+      self::checkAction('actSurfaceScan');
+
+      $player_id = self::getActivePlayerId();
+
+      $this->notifyAllPlayers(
+        "surfaceScan",
+        clienttranslate('${player_name} reveals the top element for asteroid ${asteroid_id}'),
+        [
+          'player_id' => $player_id,
+          'player_name' => $this->getActivePlayerName(),
+          'asteroid_id' => $id
+        ]
+      );
+
+      // Get cards associated with the asteroid
+      $top_card = $this->getObjectListFromDB("
+        SELECT *
+        FROM `card`
+        WHERE `card_location` = 'asteroid' AND `card_location_arg` = $id AND card_order = 1
+        ORDER BY `card_location_arg` ASC, `card_order` ASC
+      ");
+
+
+
+      $card_json = json_encode($top_card);
+
+      $sql = "UPDATE `player`
+        SET `knowledge` = JSON_SET(
+            `knowledge`,
+            '$.surface_scan',
+            JSON_OBJECT(
+              'card', CAST('" . self::escapeStringForDB($card_json) . "' AS JSON),
+              'asteroid', $id
+            )
+        )
+        WHERE `player_id` = $player_id";
+      $this->DbQuery($sql);
+      $this->notifyPlayer($player_id, 'surfaceScanResult', '', [
+          'card' => $top_card
+      ]);
+
+      $this->gamestate->nextState("displaySurfaceScan");
     }
 
     public function getKnowledge(): array {
@@ -235,7 +325,7 @@ class Game extends \Table
       return $result;
     }
 
-    public function stNewAsteroids(): void {
+    public function createAsteroids(): void {
       // Get card count per asteroid based on player count
       $playerCount = $this->getPlayersNumber();
       $vars = $this->getPlayerCountVariables($playerCount);
@@ -250,6 +340,13 @@ class Game extends \Table
           // Put cards on asteroids
           $this->drawCards($cardsPerAsteroid, 'asteroid', $asteroidId);  // Your function to get random cards
       }
+    }
+
+    public function actSurfaceScanSeen() {
+      self::checkAction('actSurfaceScanSeen');
+
+      $this->gamestate->nextState("nextSurfaceScan");
+
     }
 
 
@@ -267,6 +364,28 @@ class Game extends \Table
         ");
         $order++;
     }
+    $player_id = (int)$this->getActivePlayerId();
+
+    $cards_for_asteroid = $this->getObjectListFromDB("
+      SELECT *
+      FROM `card`
+      WHERE `card_id` in (" . self::escapeStringForDB($ids) . ")
+      ORDER BY `card_location_arg` ASC, `card_order` ASC
+    ");
+
+    $knowledge = [
+        'deep_scan' => ['cards' => $cards_for_asteroid, 'asteroid' => $cards_for_asteroid[0]['card_location_arg']],
+    ];
+
+
+    $cards_json = json_encode($knowledge);
+
+    $sql = "UPDATE `player`
+            SET `knowledge` = '" . self::escapeStringForDB($cards_json) . "'
+            WHERE `player_id` = $player_id";
+    $this->DbQuery($sql);
+
+
     $this->notifyAllPlayers(
       "deepScan",
       clienttranslate('${player_name} may have reordered the asteroid'),
@@ -300,10 +419,12 @@ class Game extends \Table
       WHERE `card_location` = 'asteroid' AND `card_location_arg` = $id
       ORDER BY `card_location_arg` ASC, `card_order` ASC
     ");
+    $knowledge = [
+        'deep_scan' => ['cards' => $cards_for_asteroid, 'asteroid' => $cards_for_asteroid[0]['card_location_arg']],
+    ];
 
-    // TODO: Fix knowledge update — requires structured JSON update, not this
-    // Placeholder (you should use proper JSON encoding per player)
-    $cards_json = json_encode($cards_for_asteroid);
+
+    $cards_json = json_encode($knowledge);
 
     $sql = "UPDATE `player`
             SET `knowledge` = '" . self::escapeStringForDB($cards_json) . "'
@@ -377,7 +498,12 @@ class Game extends \Table
 
         $result["player_count_variables"] = $this->getPlayerCountVariables($this->getPlayersNumber());
         $result["market"] = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
-
+        $result['cards'] = $this->getObjectListFromDB("
+            SELECT `card_id`, `card_order`, `card_location_arg`
+            FROM `card`
+            WHERE `card_location` = 'asteroid'
+            ORDER BY card_location_arg ASC, card_order ASC
+        ");
 
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
@@ -470,20 +596,11 @@ class Game extends \Table
         $this->cards->createCards($cards, 'deck');
         $this->cards->shuffle('deck');
 
-        // Init game statistics.
-        //
-        // NOTE: statistics used in this file must be defined in your `stats.inc.php` file.
-
-        // Dummy content.
-        // $this->initStat("table", "table_teststat1", 0);
-        // $this->initStat("player", "player_teststat1", 0);
-
-        // TODO: Setup the initial game situation here.
-
+        $this->createAsteroids();
         // Activate first player once everything has been initialized and ready.
         $this->activeNextPlayer();
 
-        $this->gamestate->nextState("newAsteroids");
+        $this->gamestate->nextState("deepScan");
     }
 
     function drawCards($numCards, $to_location = 'hand', $location_arg = null) {
