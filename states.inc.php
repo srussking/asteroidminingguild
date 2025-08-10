@@ -59,7 +59,7 @@ $machinestates = [
         "description" => "",
         "type" => "manager",
         "action" => "stGameSetup",
-        "transitions" => ["" => 10]
+        "transitions" => ["deepScan" => 10]
     ),
 
     // Note: ID=2 => your first state
@@ -68,7 +68,7 @@ $machinestates = [
         "description" => '',
         "type" => "game",
         "action" => "stNewAsteroids",
-        "transitions" => ["" => 10]
+        "transitions" => ["deepScan" => 10]
     ],
 
 
@@ -80,7 +80,7 @@ $machinestates = [
         "action" => "stDeepScan",
         "args" => "getAsteroids", 
         "possibleactions" => array( 'actDeepScan' ),
-        "transitions" => ["reorderBoard" => 11]
+        "transitions" => ["reorderBoard" => 12]
     ],
 
     11 => [
@@ -140,11 +140,9 @@ $machinestates = [
       "description" => clienttranslate('${actplayer} must select an asteroid to bid on'),
       "descriptionmyturn" => clienttranslate('${you} must select an asteroid to bid on'),
       "type" => "activeplayer",
-      "args" => "argPlayerTurn",
+      "args" => "argAuctionData",
       "possibleactions" => [
-          // these actions are called from the front with bgaPerformAction, and matched to the function on the game.php file
-          "bidOn",
-          "auctionPass" 
+         "actBidOrPass"
       ],
       "transitions" => ["pass" => 31, "bid" => 32 ]
   ],

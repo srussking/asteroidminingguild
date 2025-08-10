@@ -103,10 +103,11 @@ function (dojo, declare) {
         },
 
         setupAsteroidListeners: function(args, reorder){ 
-          console.log(`setup asteroid listeners`)
-          if(reorder && this.isCurrentPlayerActive()){
+          console.log(`setup asteroid listeners`, args, reorder)
+          if(reorder && this.isCurrentPlayerActive() ){
             console.log(args.knowledge)
             var knowledge = JSON.parse(args.knowledge[0].knowledge)
+            if(!knowledge){ return;}
             this.notif_deepScanResult({args: {cards: knowledge.deep_scan.cards}})
             var cur_asteroid = knowledge.deep_scan.asteroid
             document.getElementById(`asteroid_${cur_asteroid}`).addEventListener('click', e => this.reopenAsteroid(knowledge))
@@ -140,6 +141,7 @@ function (dojo, declare) {
         },
 
         onClickAsteroid: function(e, action){
+          console.log("onClickAsteroid", e, action)
           var el = e.currentTarget
           var asteroid_id = el.getAttribute('data-id')
           this.bgaPerformAction(action, { 
