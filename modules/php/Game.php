@@ -176,7 +176,7 @@ class Game extends \Table
 
     function stNewAsteroids() {
         // logic here, or just make it a pass-through for now
-        $this->gamestate->nextState('deepScan');
+        $this->gamestate->nextState('nextDeepScan');
     }
 
     function stDeepScan() {
@@ -205,7 +205,6 @@ class Game extends \Table
 
 
     public function actSurfaceScan(int $id){
-      self::checkAction('actSurfaceScan');
 
       $player_id = self::getActivePlayerId();
 
@@ -294,15 +293,12 @@ class Game extends \Table
     }
 
     public function actSurfaceScanSeen() {
-      self::checkAction('actSurfaceScanSeen');
-
       $this->gamestate->nextState("nextSurfaceScan");
 
     }
 
 
   public function actReorder(string $ids): void {
-    self::checkAction('actReorder');
 
     $ordered_ids = array_map('intval', explode(',', $ids));
 
@@ -350,7 +346,6 @@ class Game extends \Table
 
   public function actDeepScan(int $id): void {
     self::dump("actDeepScan", $id);
-    self::checkAction('actDeepScan');
 
     $player_id = self::getActivePlayerId();
 
@@ -551,8 +546,6 @@ class Game extends \Table
         $this->createAsteroids();
         // Activate first player once everything has been initialized and ready.
         $this->activeNextPlayer();
-
-        $this->gamestate->nextState("deepScan");
     }
 
     function drawCards($numCards, $to_location = 'hand', $location_arg = null) {

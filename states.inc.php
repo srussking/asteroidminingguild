@@ -59,16 +59,16 @@ $machinestates = [
         "description" => "",
         "type" => "manager",
         "action" => "stGameSetup",
-        "transitions" => ["deepScan" => 10]
+        "transitions" => ["newAsteroids" => 2]
     ),
 
     // Note: ID=2 => your first state
     2 => [
         "name" => "newAsteroids",
         "description" => '',
-        "type" => "game",
+        "type" => "activeplayer",
         "action" => "stNewAsteroids",
-        "transitions" => ["deepScan" => 10]
+        "transitions" => ["nextDeepScan" => 12]
     ],
 
 
@@ -80,7 +80,7 @@ $machinestates = [
         "action" => "stDeepScan",
         "args" => "getAsteroids", 
         "possibleactions" => array( 'actDeepScan' ),
-        "transitions" => ["reorderBoard" => 12]
+        "transitions" => ["reorderBoard" => 11]
     ],
 
     11 => [
