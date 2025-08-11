@@ -140,29 +140,54 @@ $machinestates = [
       "description" => clienttranslate('${actplayer} must select an asteroid to bid on'),
       "descriptionmyturn" => clienttranslate('${you} must select an asteroid to bid on'),
       "type" => "activeplayer",
-      "args" => "argAuctionData",
+      "args" => "getKnowledge",
       "possibleactions" => [
          "actBidOrPass"
       ],
-      "transitions" => ["pass" => 31, "bid" => 32 ]
+      "transitions" => ["nextBidder" => 31]
   ],
 
   31 => [
-    "name" => "passed",
+    "name" => "nextBidder",
     "description" => '',
     "type" => "game",
-    "action" => "stAuctionPassed",
-    "updateGameProgression" => true,
-    "transitions" => ["nextPlayer" => 30 ]
+    "action" => "stNextBidder",
+    "transitions" => ["auction" => 30,"biddingComplete" => 32 ]
   ],
 
   32 => [
-    "name" => "bid",
+    "name" => "biddingComplete",
     "description" => '',
     "type" => "game",
-    "action" => "stBid",
-    "updateGameProgression" => true,
-    "transitions" => ["nextPlayer" => 30 ]
+    "action" => "stBiddingComplete",
+    "transitions" => ["marketRound" => 40 ]
+  ],
+
+  40 => [
+    "name" => "marketRound",
+    "description" => clienttranslate('${actplayer} must select an asteroid to bid on'),
+    "descriptionmyturn" => clienttranslate('${you} must select an asteroid to bid on'),
+    "type" => "activeplayer",
+    "possibleactions" => [
+      "sellOrPass"
+    ],
+    "transitions" => ["nextMarket" => 41]
+  ],
+
+  41 => [
+    "name" => "nextMarket",
+    "description" => '',
+    "type" => "game",
+    "action" => "stNextMarket",
+    "transitions" => ["marketComplete" => 42 ]
+  ],
+
+  42 => [
+    "name" => "marketComplete",
+    "description" => '',
+    "type" => "game",
+    "action" => "stMarketComplete",
+    "transitions" => ["newAsteroids" => 2 ]
   ],
 
 

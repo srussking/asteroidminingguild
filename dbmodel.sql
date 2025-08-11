@@ -68,5 +68,8 @@ CREATE TABLE IF NOT EXISTS `asteroid_bid` (
 
 ALTER TABLE `player` ADD `money` SMALLINT UNSIGNED NOT NULL DEFAULT '50';
 ALTER TABLE `player` ADD COLUMN knowledge JSON;
+ALTER TABLE `player` ADD `passed` TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE `player` ADD `next_first` TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE `player` ADD `outbid` TINYINT(1) NOT NULL DEFAULT 0;
 
 CREATE INDEX idx_location_order ON card(card_location, card_location_arg, card_order);

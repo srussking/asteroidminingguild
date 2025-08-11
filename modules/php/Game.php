@@ -184,24 +184,147 @@ class Game extends \Table
         self::error("stDeepScan");
     }
 
-    function stAuctionPassed() {
+    function stMarketComplete() {
         // logic here, or just make it a pass-through for now
-        self::debug("stAuctionPassed");
+        self::error("stDeepScan");
     }
 
-    function stBid() {
+    function stNextMarket() {
         // logic here, or just make it a pass-through for now
-        self::debug("stBid");
+        self::error("stDeepScan");
     }
 
-    function actBidOrPass(){
-      //TODO
+    function stBiddingComplete() {
+        // logic here, or just make it a pass-through for now
+        self::error("stDeepScan");
     }
 
-    function argAuctionData(){
-      //TODO
+
+    function stNextBidder() {
+      $next_player = $this->getNextPlayer();
+      if(isset($next_player)){
+        $this->setPlayerOutbid($next_player, 0);
+        $this->activeNextPlayer($next_player);
+      } else {
+        $this->gamestate->nextState('biddingComplete');
+      }
     }
 
+    function getNextPlayer() {
+        $players = $this->loadPlayersBasicInfos(); // player info indexed by player_id
+        // Sort players by turn order
+        uasort($players, function($a, $b) {
+            return $a['player_no'] - $b['player_no'];
+        });
+
+        // Extract player IDs in turn order
+        $player_ids = array_keys($players);
+
+        // Find current active player position in the order
+        $current_player_id = $this->getActivePlayerId();
+        $current_index = array_search($current_player_id, $player_ids);
+
+        $n = count($player_ids);
+
+        // First, check for any player with outbid = 1
+        foreach ($player_ids as $player_id) {
+            $outbid = (int) $this->getUniqueValueFromDB("SELECT outbid FROM player WHERE player_id = $player_id");
+            if ($outbid === 1) {
+                return $player_id; // immediately return first player found with outbid
+            }
+        }
+
+        // No one outbid, so find next player after current who has not passed
+        for ($i = 1; $i <= $n; $i++) {
+            $idx = ($current_index + $i) % $n;
+            $next_player_id = $player_ids[$idx];
+            $passed = (int) $this->getUniqueValueFromDB("SELECT passed FROM player WHERE player_id = $next_player_id");
+            if ($passed === 0) {
+                return $next_player_id;
+            }
+        }
+
+        // If no player found (all passed), return null or handle end condition
+        return null;
+    }
+
+
+    function actBidOrPass(?int $id) {
+      $player_id = self::getActivePlayerId();
+
+      if (isset($id)) {
+        $prev_bid = $this->getObjectListFromDB("
+          SELECT `bid_amount`
+          FROM `asteroid_bid`
+          WHERE `asteroid_id` = $id
+          ORDER BY `bid_amount` DESC
+          LIMIT 1
+        ");
+
+        $bid_amount = 1;
+        $next_player = null;
+        if (count($prev_bid) > 0) {
+          $bid_amount = $prev_bid[0]->bid_amount + 1;
+          $this->setPlayerOutbid($prev_bid[0]->player_id, 1);
+        }
+
+        $this->bid($id, $player_id, $bid_amount);
+        
+      } else {
+        $this->pass($player_id);
+      }
+    }
+    function setPlayerOutbid(int $player_id, int $outbid){
+      static::DbQuery("UPDATE `player` SET `outbid` = $outbid WHERE `player_id` = $player_id");
+    }
+
+    function bid(int $id, int $player_id, int $bid_amount){
+      static::DbQuery("INSERT INTO asteroid_bid (asteroid_id, player_id, bid_amount)
+       VALUES ($id,$player_id,$bid_amount)");
+
+      $this->notifyAllPlayers(
+        "Bid",
+        clienttranslate('${player_name} has bid on ${asteroid_id}'),
+        [
+          'player_id' => $player_id,
+          'player_name' => $this->getActivePlayerName(),
+          'asteroid_id' => $id
+        ]
+      );
+    }
+
+
+    function pass(int $player_id) {
+      // Check how many players have passed so far
+      $already_passed = $this->getUniqueValueFromDB("
+        SELECT COUNT(*) 
+        FROM `player`
+        WHERE passed = 1
+      ");
+
+      // Determine message based on whether this is the first pass
+      if ($already_passed == 0) {
+        $message = clienttranslate('${player_name} is the first to pass');
+      } else {
+        $message = clienttranslate('${player_name} has passed');
+      }
+
+      // Mark this player as passed
+      $sql = "UPDATE `player`
+        SET `passed` = 1,
+          `next_first` = " . ($already_passed == 0 ? 1 : 0) . "
+        WHERE `player_id` = $player_id";
+      $this->DbQuery($sql);
+      // Notify everyone
+      $this->notifyAllPlayers(
+        "passed",
+        $message,
+        [
+          'player_id'   => $player_id,
+          'player_name' => $this->getActivePlayerName()
+        ]
+      );
+    }
 
 
     public function actSurfaceScan(int $id){

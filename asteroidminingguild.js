@@ -158,6 +158,10 @@ function (dojo, declare) {
           });
         },
 
+        setupBidding: function(args){
+          console.log("setup bidding", args)
+        },
+
         ///////////////////////////////////////////////////
         //// Game & client states
         
@@ -184,6 +188,9 @@ function (dojo, declare) {
               break;
             case 'displaySurfaceScan':
               this.displaySurfaceScan(args);
+              break;
+            case 'auction':
+              this.setupBidding(args);
               break;
 
             
