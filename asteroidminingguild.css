@@ -207,3 +207,12 @@ body#ebd-body {
   height: 24px;
   border-radius: 5px;
 }
+
+.bids {
+  color: white;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  text-align: right;
+  border: 1px solid white;
+}

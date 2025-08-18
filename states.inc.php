@@ -140,7 +140,7 @@ $machinestates = [
       "description" => clienttranslate('${actplayer} must select an asteroid to bid on'),
       "descriptionmyturn" => clienttranslate('${you} must select an asteroid to bid on'),
       "type" => "activeplayer",
-      "args" => "getKnowledge",
+      "args" => "getAuction",
       "possibleactions" => [
          "actBidOrPass"
       ],

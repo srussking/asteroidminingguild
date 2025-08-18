@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS `asteroid_bid` (
   `asteroid_id` INT UNSIGNED NOT NULL,
   `player_id` INT UNSIGNED NOT NULL,
   `bid_amount` INT UNSIGNED NOT NULL,
-  PRIMARY KEY (`asteroid_id`, `player_id`)
+  PRIMARY KEY (`asteroid_id`, `player_id`, `bid_amount`)
 );
 
 ALTER TABLE `player` ADD `money` SMALLINT UNSIGNED NOT NULL DEFAULT '50';

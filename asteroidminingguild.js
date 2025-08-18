@@ -91,7 +91,7 @@ function (dojo, declare) {
                 last_asteroid = v.card_location_arg
                 document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
               }
-              document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
+              // document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
             })
             
             document.getElementById('close_modal_button').addEventListener('click', this.close_modal)            
@@ -149,7 +149,11 @@ function (dojo, declare) {
           });       
         },
 
-        nextDeepScan: function(){
+        onClickPass: function(e,action){
+          this.bgaPerformAction(action, { })
+        },
+
+        closeModalAndClearClickListeners: function(){
           this.close_modal();
           //remove any click listeners
           document.querySelectorAll('.asteroid').forEach(el => {
@@ -160,6 +164,50 @@ function (dojo, declare) {
 
         setupBidding: function(args){
           console.log("setup bidding", args)
+          var that = this
+
+          if(this.isCurrentPlayerActive()){
+            document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e, "actBidOrPass")));
+            document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='auction_pass'>PASS</button>")
+            document.getElementById('auction_pass').addEventListener('click', e => this.onClickPass(e, 'actBidOrPass'));
+  
+          } else {
+            const el = document.getElementById('auction_pass')
+            if(el){
+              el.remove()
+            }
+          }
+          document.querySelectorAll('.bids').forEach(b => b.remove())
+          document.querySelectorAll('.asteroid').forEach(a => {
+           that.addBiddingStatsToAsteroid(a,args)
+          })
+        },
+
+        addBiddingStatsToAsteroid: function(asteroid, args){
+          console.log("add bidding details", asteroid, args)
+          var that = this;
+          var asteroid_id = parseInt(asteroid.getAttribute('data-id'))
+          asteroid.insertAdjacentHTML('beforeend', `<div class='bids' id='bids_${asteroid_id}'></div>`)
+          args.args.players.forEach(p => {
+            try {
+              document.getElementById("bids_" + asteroid_id).insertAdjacentHTML('beforeend', `
+                <div class="player_bid"><span style="color: #${p.player_color}">${p.player_name}</span>: ${p.passed == '1' ? "Passed" : that.getBidFor(asteroid_id,p.player_id,args.args.bids)}
+              `)
+            } catch(e) {
+              console.log(e.message)
+            }
+
+          })
+        },
+
+        getBidFor: function(asteroid_id,player_id,bids){
+          var bid = bids.filter(b => b.asteroid_id == asteroid_id && b.player_id == player_id);
+          if(bid.length > 0){
+            bid.sort((a,b) => a.bid_amount > b.bid_amount)
+            return bid[0].bid_amount
+          } else {
+            return "No bid"
+          }
         },
 
         ///////////////////////////////////////////////////
@@ -181,8 +229,9 @@ function (dojo, declare) {
               this.setupAsteroidListeners(args.args,true);
               break;
             case 'nextDeepScan':
-              this.nextDeepScan()
-              break;
+            case 'nextSurfaceScan':
+              this.closeModalAndClearClickListeners()
+              break;  
             case 'surfaceScan':
               this.setupSurfaceScanListeners();
               break;

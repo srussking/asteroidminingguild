@@ -195,19 +195,46 @@ class Game extends \Table
     }
 
     function stBiddingComplete() {
-        // logic here, or just make it a pass-through for now
-        self::error("stDeepScan");
+        // CLEANUP AUCTION
+        self::error("cleanup auction");
+
+        // MOVE ASTEROIDS TO PLAYER
+        self::error("assign asteroids");
+
+        // HANDLE THE MONEY
+        self::error("assign asteroids");
+
+        $this->gamestate->nextState('marketRound');
     }
 
 
     function stNextBidder() {
-      $next_player = $this->getNextPlayer();
-      if(isset($next_player)){
-        $this->setPlayerOutbid($next_player, 0);
-        $this->activeNextPlayer($next_player);
-      } else {
+      $already_passed = (int)$this->getUniqueValueFromDB("
+          SELECT COUNT(*) 
+          FROM `player`
+          WHERE passed = 1
+      ");
+      $num_players = $this->getPlayersNumber();
+
+      // If not all but one player has passed, bidding is over
+      // self::error("bidding complete? $already_passed : $num_players");
+      if ($already_passed >= ($num_players - 1)) {
         $this->gamestate->nextState('biddingComplete');
+        return;
       }
+
+      $next_player = $this->getNextPlayer();
+
+      if ($next_player === null) {
+          $this->gamestate->nextState('biddingComplete');
+          return;
+      }
+
+      $next_player = (int)$next_player;
+      $this->setPlayerOutbid($next_player, 0);
+      $this->gamestate->changeActivePlayer($next_player);
+
+      $this->gamestate->nextState('auction');
     }
 
     function getNextPlayer() {
@@ -221,7 +248,7 @@ class Game extends \Table
         $player_ids = array_keys($players);
 
         // Find current active player position in the order
-        $current_player_id = $this->getActivePlayerId();
+        $current_player_id = (int) $this->getActivePlayerId();
         $current_index = array_search($current_player_id, $player_ids);
 
         $n = count($player_ids);
@@ -230,18 +257,26 @@ class Game extends \Table
         foreach ($player_ids as $player_id) {
             $outbid = (int) $this->getUniqueValueFromDB("SELECT outbid FROM player WHERE player_id = $player_id");
             if ($outbid === 1) {
+              $player_name = $this->getPlayerNameById((int) $player_id);
+              $this->notifyAllPlayers(
+                "Outbid",
+                clienttranslate('${player_name} was outbid and is now the next player'),
+                [
+                  'player_name' => $player_name
+                ]
+              );
                 return $player_id; // immediately return first player found with outbid
             }
         }
 
-        // No one outbid, so find next player after current who has not passed
+        self::error("No one outbid, so find next player after current who has not passed");
         for ($i = 1; $i <= $n; $i++) {
-            $idx = ($current_index + $i) % $n;
-            $next_player_id = $player_ids[$idx];
-            $passed = (int) $this->getUniqueValueFromDB("SELECT passed FROM player WHERE player_id = $next_player_id");
-            if ($passed === 0) {
-                return $next_player_id;
-            }
+          $idx = ($current_index + $i) % $n;
+          $next_player_id = $player_ids[$idx];
+          $passed = (int) $this->getUniqueValueFromDB("SELECT passed FROM player WHERE player_id = $next_player_id");
+          if ($passed === 0 && $next_player_id != $current_player_id) {
+            return $next_player_id;
+          }
         }
 
         // If no player found (all passed), return null or handle end condition
@@ -250,11 +285,11 @@ class Game extends \Table
 
 
     function actBidOrPass(?int $id) {
-      $player_id = self::getActivePlayerId();
+      $player_id = (int) self::getActivePlayerId();
 
       if (isset($id)) {
-        $prev_bid = $this->getObjectListFromDB("
-          SELECT `bid_amount`
+        $rows = $this->getObjectListFromDB("
+          SELECT `bid_amount`, `player_id`
           FROM `asteroid_bid`
           WHERE `asteroid_id` = $id
           ORDER BY `bid_amount` DESC
@@ -262,17 +297,17 @@ class Game extends \Table
         ");
 
         $bid_amount = 1;
-        $next_player = null;
-        if (count($prev_bid) > 0) {
-          $bid_amount = $prev_bid[0]->bid_amount + 1;
-          $this->setPlayerOutbid($prev_bid[0]->player_id, 1);
+        if (!empty($rows)) {
+            $top = $rows[0]; // associative array
+            $bid_amount = (int)$top['bid_amount'] + 1;
+            $this->setPlayerOutbid((int)$top['player_id'], 1);
         }
 
         $this->bid($id, $player_id, $bid_amount);
-        
       } else {
         $this->pass($player_id);
       }
+      $this->gamestate->nextState('nextBidder');
     }
     function setPlayerOutbid(int $player_id, int $outbid){
       static::DbQuery("UPDATE `player` SET `outbid` = $outbid WHERE `player_id` = $player_id");
@@ -324,6 +359,7 @@ class Game extends \Table
           'player_name' => $this->getActivePlayerName()
         ]
       );
+
     }
 
 
@@ -387,6 +423,27 @@ class Game extends \Table
       return $result;
     }
 
+    public function getAuction(): array {
+      $player_id = (int)$this->getActivePlayerId();
+      $result = [];
+      $result['knowledge'] = $this->getObjectListFromDB("
+        SELECT `knowledge` 
+        FROM `player` 
+        WHERE  `player_id` = $player_id");
+      $result['cards'] = $this->getObjectListFromDB("
+          SELECT `card_id`, `card_order`, `card_location_arg`
+          FROM `card`
+          WHERE `card_location` = 'asteroid'
+          ORDER BY card_location_arg ASC, card_order ASC
+      ");
+      $result['bids'] = $this->getObjectListFromDB("
+        SELECT * from `asteroid_bid` ORDER BY asteroid_id ASC, bid_amount DESC
+      ");
+      $result['players'] = $this->getObjectListFromDB("
+        SELECT player_id,player_name,player_color,money,passed from `player` ORDER BY player_no ASC
+      ");
+      return $result;
+    }
     public function getAsteroids(): array {
       $result = [];
       $result['cards'] = $this->getObjectListFromDB("
