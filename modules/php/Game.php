@@ -269,12 +269,13 @@ class Game extends \Table
             }
         }
 
-        self::error("No one outbid, so find next player after current who has not passed");
+        self::error("No one outbid, so find next player after current who has not passed and has not bid");
         for ($i = 1; $i <= $n; $i++) {
           $idx = ($current_index + $i) % $n;
           $next_player_id = $player_ids[$idx];
           $passed = (int) $this->getUniqueValueFromDB("SELECT passed FROM player WHERE player_id = $next_player_id");
-          if ($passed === 0 && $next_player_id != $current_player_id) {
+          $has_bid = (int) $this->getUniqueValueFromDB("SELECT asteroid_id FROM asteroid_bid WHERE player_id = $next_player_id");
+          if ($passed === 0 && $has_bid === 0 &&  $next_player_id != $current_player_id) {
             return $next_player_id;
           }
         }
@@ -284,7 +285,7 @@ class Game extends \Table
     }
 
 
-    function actBidOrPass(?int $id) {
+    function actBidOrPass(?int $id, ?int $bid_amount) {
       $player_id = (int) self::getActivePlayerId();
 
       if (isset($id)) {
@@ -296,14 +297,12 @@ class Game extends \Table
           LIMIT 1
         ");
 
-        $bid_amount = 1;
         if (!empty($rows)) {
             $top = $rows[0]; // associative array
-            $bid_amount = (int)$top['bid_amount'] + 1;
             $this->setPlayerOutbid((int)$top['player_id'], 1);
         }
 
-        $this->bid($id, $player_id, $bid_amount);
+        $this->bid($id, $player_id, $bid_amount, $rows);
       } else {
         $this->pass($player_id);
       }
@@ -313,17 +312,22 @@ class Game extends \Table
       static::DbQuery("UPDATE `player` SET `outbid` = $outbid WHERE `player_id` = $player_id");
     }
 
-    function bid(int $id, int $player_id, int $bid_amount){
-      static::DbQuery("INSERT INTO asteroid_bid (asteroid_id, player_id, bid_amount)
-       VALUES ($id,$player_id,$bid_amount)");
-
+    function bid(int $id, int $player_id, int $bid_amount, $prev_bid){
+      if(!empty($prev_bid)){
+        static::DbQuery("UPDATE `asteroid_bid` SET `bid_amount` = $bid_amount, `player_id` = $player_id WHERE `asteroid_id` = $id");
+      } else {
+        static::DbQuery("INSERT INTO asteroid_bid (asteroid_id, player_id, bid_amount)
+          VALUES ($id,$player_id,$bid_amount)");
+      }
+ 
       $this->notifyAllPlayers(
         "Bid",
-        clienttranslate('${player_name} has bid on ${asteroid_id}'),
+        clienttranslate('${player_name} has bid ${bid_amount} on ${asteroid_id}'),
         [
           'player_id' => $player_id,
           'player_name' => $this->getActivePlayerName(),
-          'asteroid_id' => $id
+          'asteroid_id' => $id,
+          'bid_amount' => $bid_amount
         ]
       );
     }

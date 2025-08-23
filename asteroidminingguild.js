@@ -167,7 +167,7 @@ function (dojo, declare) {
           var that = this
 
           if(this.isCurrentPlayerActive()){
-            document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e, "actBidOrPass")));
+            document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.openBidModal(e,args)));
             document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='auction_pass'>PASS</button>")
             document.getElementById('auction_pass').addEventListener('click', e => this.onClickPass(e, 'actBidOrPass'));
   
@@ -181,6 +181,75 @@ function (dojo, declare) {
           document.querySelectorAll('.asteroid').forEach(a => {
            that.addBiddingStatsToAsteroid(a,args)
           })
+        },
+
+        openBidModal(e, args){
+          var el = e.currentTarget
+          var asteroid_id = el.getAttribute('data-id')
+          const {min_bid, max_bid, asteroid_knowledge} = this.getBidDeets(asteroid_id, args)
+
+          var html = `
+            <div class='bid_modal'>
+              <div class='bid_container'>
+                <label for="bid_amount_${asteroid_id}">Bid: 
+                <input id='bid_amount_${asteroid_id}' name="bid_amount_${asteroid_id}" type='number' min='${min_bid}' max='${max_bid}' value='${min_bid}'></input>
+                <button id='bid_button'>Bid</button>
+              </div>
+              <div class='knowledge'>
+                ${asteroid_knowledge.deep_scan ? this.getKnowledgeHtml(asteroid_knowledge.deep_scan.cards) : ""}
+                ${asteroid_knowledge.surface_scan ? this.getKnowledgeHtml(asteroid_knowledge.surface_scan.card) : ""}
+              </div>
+            </div>
+          `
+
+          this.show_modal(`Asteroid Bid`, html)
+          document.getElementById('bid_button').addEventListener('click',(e) => {
+            var bid_amount = document.getElementById(`bid_amount_${asteroid_id}`).value
+            this.bgaPerformAction('actBidOrPass', { 
+                id: asteroid_id,
+                bid_amount
+            }); 
+            this.close_modal()
+          })
+
+        },
+
+        getKnowledgeHtml(cards){
+          var that = this;
+          var html = ''
+          if(cards.length == 1){
+            html += `<div class='scan surface_scan'>Surface Scan: <ol><li> ${this.getCardReadout(cards[0])}</li></ol></div>`
+          } else if(cards.length > 1) {
+            html += '<div class="scan deep_scan">Deep Scan: <ol>'
+            cards.forEach(c => {
+              html += `<li>${that.getCardReadout(c)}</li>`
+            })
+            html += "</ol></div>"
+          }
+          return html
+        },
+
+        getBidDeets(asteroid_id, args){
+          var {bids,knowledge,players} = args.args;
+          var min_bid = 1
+          var all_known = JSON.parse(knowledge[0].knowledge)
+          var asteroid_knowledge = {}
+          if(all_known.deep_scan && parseInt(all_known.deep_scan.asteroid) == parseInt(asteroid_id)){
+            asteroid_knowledge["deep_scan"] = all_known.deep_scan
+          }
+
+          if(all_known.surface_scan && parseInt(all_known.surface_scan.asteroid) == parseInt(asteroid_id)){
+            asteroid_knowledge["surface_scan"] = all_known.surface_scan
+          }
+
+          var active_player = args.active_player
+          var player = players.filter(v => v.player_id == active_player)
+          var max_bid = player[0].money
+          var current_bid_on_asteroid = bids.filter(v => v.asteroid_id == asteroid_id)
+          if(current_bid_on_asteroid.length > 0){
+            min_bid = parseInt(current_bid_on_asteroid[0].bid_amount) + 1
+          }
+          return {min_bid,max_bid,asteroid_knowledge}
         },
 
         addBiddingStatsToAsteroid: function(asteroid, args){
