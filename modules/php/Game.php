@@ -196,13 +196,64 @@ class Game extends \Table
 
     function stBiddingComplete() {
         // CLEANUP AUCTION
-        self::error("cleanup auction");
+        $bids = $this->getObjectListFromDB("
+          SELECT * 
+          FROM `asteroid_bid`");
 
         // MOVE ASTEROIDS TO PLAYER
         self::error("assign asteroids");
+        foreach ($bids as $bid) {
+          $asteroid_id = $bid['asteroid_id'];
+          $bid_amount = $bid['bid_amount'];
+          $player_id = $bid['player_id'];
+          $this->notifyAllPlayers(
+            "Purchase",
+            clienttranslate('${player_name} has purchased asteroid ${asteroid_id} for ${bid_amount}'),
+            [
+              'player_name' => $this->getPlayerNameById($player_id),
+              'bid_amount' => $bid_amount,
+              'asteroid_id' => $asteroid_id
+            ]
+          );
 
-        // HANDLE THE MONEY
-        self::error("assign asteroids");
+          //HANDLE THE MONEY
+          $money = (int)$this->getUniqueValueFromDB("
+              SELECT `money` 
+              FROM `player`
+              WHERE player_id = $player_id
+          ");
+          $new_money = $money - $bid_amount;
+          self::DbQuery("UPDATE `player` SET `money` = $new_money WHERE `player_id` = $player_id");
+
+          //ASSIGN ASTEROID
+          self::DbQuery("UPDATE `card` SET `card_location` = 'player', `card_location_arg` = $player_id WHERE `card_location` = 'asteroid' AND `card_location_arg` = $asteroid_id");
+          self::DbQuery("UPDATE `asteroid` SET `location` = 'player', `location_arg` = $player_id WHERE `asteroid_id` = $asteroid_id");
+
+        }
+
+        $next_player = (int)$this->getUniqueValueFromDB("
+            SELECT `player_id` 
+            FROM `player`
+            WHERE next_first = 1
+        ");
+
+        $this->gamestate->changeActivePlayer($next_player);
+
+        // Cleanup bid table and prepare for next round
+        self::DbQuery("UPDATE `player` SET 
+          `passed` = 0, 
+          `outbid` = 0,
+          `next_first` = 0,
+          `knowledge` = null
+        ");
+
+        self::DbQuery("TRUNCATE TABLE asteroid_bid");
+
+        self::DbQuery("UPDATE `asteroid` SET 
+          `location` = 'beyond'
+          WHERE `location` = 'space'
+        ");
+
 
         $this->gamestate->nextState('marketRound');
     }
@@ -280,7 +331,6 @@ class Game extends \Table
           }
         }
 
-        // If no player found (all passed), return null or handle end condition
         return null;
     }
 

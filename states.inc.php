@@ -165,8 +165,8 @@ $machinestates = [
 
   40 => [
     "name" => "marketRound",
-    "description" => clienttranslate('${actplayer} must select an asteroid to bid on'),
-    "descriptionmyturn" => clienttranslate('${you} must select an asteroid to bid on'),
+    "description" => clienttranslate('${actplayer} can sell or pass'),
+    "descriptionmyturn" => clienttranslate('${you} must sell an item or pass'),
     "type" => "activeplayer",
     "possibleactions" => [
       "sellOrPass"
@@ -179,7 +179,7 @@ $machinestates = [
     "description" => '',
     "type" => "game",
     "action" => "stNextMarket",
-    "transitions" => ["marketComplete" => 42 ]
+    "transitions" => ["marketRound" => 40, "marketComplete" => 42 ]
   ],
 
   42 => [
