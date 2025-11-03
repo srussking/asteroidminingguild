@@ -202,10 +202,12 @@ class Game extends \Table
 
         // MOVE ASTEROIDS TO PLAYER
         self::error("assign asteroids");
+        $fp_money = 0;
         foreach ($bids as $bid) {
           $asteroid_id = $bid['asteroid_id'];
           $bid_amount = $bid['bid_amount'];
           $player_id = $bid['player_id'];
+          $fp_money = $bid_amount + $fp_money;
           $this->notifyAllPlayers(
             "Purchase",
             clienttranslate('${player_name} has purchased asteroid ${asteroid_id} for ${bid_amount}'),
@@ -236,6 +238,8 @@ class Game extends \Table
             FROM `player`
             WHERE next_first = 1
         ");
+
+        self::DbQuery("UPDATE `player` SET `money` = `money` + $fp_money WHERE `player_id` = $next_player");
 
         $this->gamestate->changeActivePlayer($next_player);
 
@@ -358,6 +362,15 @@ class Game extends \Table
       }
       $this->gamestate->nextState('nextBidder');
     }
+
+    function sellOrPass(?int $id){
+      if(isset($id)){ 
+        
+      } else {
+
+      }
+    }
+
     function setPlayerOutbid(int $player_id, int $outbid){
       static::DbQuery("UPDATE `player` SET `outbid` = $outbid WHERE `player_id` = $player_id");
     }
@@ -459,6 +472,22 @@ class Game extends \Table
       ]);
 
       $this->gamestate->nextState("displaySurfaceScan");
+    }
+
+    public function getMarket(): array {
+      $player_id = (int)$this->getActivePlayerId();
+      $result = [];
+      $result['players'] = $this->getObjectListFromDB(
+        "SELECT `money`,`player_id` FROM `player`"
+      );
+      $result['player_cards'] = $this->getObjectListFromDB("
+          SELECT *
+          FROM `card`
+          WHERE `card_location` = 'player'
+          AND `card_location_arg` = $player_id
+          ORDER BY card_location_arg ASC, card_order ASC
+      ");
+      return $result;
     }
 
     public function getKnowledge(): array {

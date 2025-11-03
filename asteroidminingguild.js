@@ -81,10 +81,12 @@ function (dojo, declare) {
                 document.getElementById('player_tables').insertAdjacentHTML('beforeend', `
                     <div id="player_table_${player.id}">
                         <strong>${player.name}</strong>
-                        <div>Player zone content goes here</div>
+                        <div id="player_cards_${player.id}">
+                        
+                        </div>
                     </div>
                 `);
-            });
+               });
             var last_asteroid = -1;
             gamedatas.cards.map(function(v){ 
               if(v.card_location_arg != last_asteroid){
@@ -181,6 +183,41 @@ function (dojo, declare) {
           document.querySelectorAll('.asteroid').forEach(a => {
            that.addBiddingStatsToAsteroid(a,args)
           })
+        },
+
+        biddingComplete: function(args){
+          console.log("bidding complete", args);
+          var that = this;
+        },
+
+        marketRound: function(args){
+          console.log("market round", args);
+          const {player_cards,players} = args.args
+          this.addPlayerCardsToPlayersTable(player_cards, args.active_player)
+          this.updateMoney(players)
+          document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='market_pass'>PASS</button>")
+          document.getElementById('market_pass').addEventListener('click', e => this.onClickPass(e, 'sellOrPass'));
+
+        },
+
+        updateMoney: function(players){
+          players.forEach(p => {
+            const el = document.querySelector(
+                `#player_counter_${p.player_id} .space_bucks`
+            );
+
+            if (el) {
+                el.innerHTML = `ß ${p.money}`;
+            }
+          })
+        },
+
+        addPlayerCardsToPlayersTable(player_cards,player_id){
+          html += "<div class='cards'>"
+          player_cards.forEach(c => { 
+            html += `<div class='card' id='card_${c.card_id}' data-id='${c.card_id}'></div>`
+          })
+          document.getElementById(`player_cards_${player_id}`).insertAdjacentHTML('beforeend', html)
         },
 
         openBidModal(e, args){
@@ -310,11 +347,14 @@ function (dojo, declare) {
             case 'auction':
               this.setupBidding(args);
               break;
-
-            
+            case 'biddingComplete':
+              this.biddingComplete(args);
+              break;
+            case 'marketRound':
+              this.marketRound(args);
+              break;
             case 'dummy':
                 break;
-            
             default:
               console.log("missing game state", stateName,args)
           }
