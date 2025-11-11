@@ -46,62 +46,54 @@ function (dojo, declare) {
         
         setup: function( gamedatas )
         {
-            console.log( "Starting game setup",gamedatas );
+          console.log( "Starting game setup",gamedatas );
+          this.setupNotifications();
 
-            document.getElementById('game_play_area').insertAdjacentHTML('beforeend', `
-                <div id="table"><div class="board_market_container"><div id="bidding_boards"></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
-            `);
-            var num_players = Object.entries(gamedatas.players).length
-            var pcv = gamedatas.player_count_variables
-            var market_col = gamedatas.market
-            var market = Object.entries(market_col)[0][1]
-            var market_arr = [{col: "iron", inc: 2},{col: "lead", inc: 3},{col: "copper", inc: 4},{col: "gold", inc: 5}]
-            for(var i = 0; i < market_arr.length; i++){
-              var m = market_arr[i];
-              var id = `market_column_${m.col}`
-              var curr_val = parseInt(market[m.col])
-              document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"></div>`)
-              for(var j = 0; j < (pcv.rounds + 4) ; j++){ //rounds + num jokers + starting value
-                var current = curr_val == j
-                var val = j * m.inc
-                document.getElementById(id).insertAdjacentHTML('beforeend',`<div id="${id}_${val}" class="val_box_container ${current ? 'current': ''}"><div class="box"></div><div class="value">${val}</div></div>`)
-              }
+          document.getElementById('game_play_area').insertAdjacentHTML('beforeend', `
+              <div id="table"><div class="board_market_container"><div id="bidding_boards"></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
+          `);
+          var num_players = Object.entries(gamedatas.players).length
+          var pcv = gamedatas.player_count_variables
+          var market_col = gamedatas.market
+          var market = Object.entries(market_col)[0][1]
+          var market_arr = [{col: "iron", inc: 2},{col: "lead", inc: 3},{col: "copper", inc: 4},{col: "gold", inc: 5}]
+          for(var i = 0; i < market_arr.length; i++){
+            var m = market_arr[i];
+            var id = `market_column_${m.col}`
+            var curr_val = parseInt(market[m.col])
+            document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"></div>`)
+            for(var j = 0; j < (pcv.rounds + 4) ; j++){ //rounds + num jokers + starting value
+              var current = curr_val == j
+              var val = j * m.inc
+              document.getElementById(id).insertAdjacentHTML('beforeend',`<div id="${id}_${val}" class="val_box_container ${current ? 'current': ''}"><div class="box"></div><div class="value">${val}</div></div>`)
             }
+          }
 
 
-            
-            // Setting up player boards
-            Object.values(gamedatas.players).forEach(player => {
-                // example of setting up players boards
-                this.getPlayerPanelElement(player.id).insertAdjacentHTML('beforeend', `
-                    <div id="player_counter_${player.id}"><div class="space_bucks">ß ${player.money}</div></div>
-                `);
+          
+          // Setting up player boards
+          Object.values(gamedatas.players).forEach(player => {
+              // example of setting up players boards
+              this.getPlayerPanelElement(player.id).insertAdjacentHTML('beforeend', `
+                  <div id="player_counter_${player.id}"><div class="space_bucks">ß ${player.money}</div></div>
+              `);
 
-                // example of adding a div for each player
-                document.getElementById('player_tables').insertAdjacentHTML('beforeend', `
-                    <div id="player_table_${player.id}">
-                        <strong>${player.name}</strong>
-                        <div id="player_cards_${player.id}">
-                        
-                        </div>
-                    </div>
-                `);
-               });
-            var last_asteroid = -1;
-            gamedatas.cards.map(function(v){ 
-              if(v.card_location_arg != last_asteroid){
-                last_asteroid = v.card_location_arg
-                document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
-              }
-              // document.getElementById(`asteroid_${v.card_location_arg}`).querySelector('.cards').insertAdjacentHTML('beforeend', `<div id='card_${v.card_id}' class='card' data-order='${v.card_order}' data-id='${v.card_id}'></div>`)
-            })
-            
-            document.getElementById('close_modal_button').addEventListener('click', this.close_modal)            
- 
-            // Setup game notifications to handle (see "setupNotifications" method below)
-            this.setupNotifications();
+              // example of adding a div for each player
+              document.getElementById('player_tables').insertAdjacentHTML('beforeend', `
+                  <div id="player_table_${player.id}">
+                      <strong>${player.name}</strong>
+                      <div id="player_cards_${player.id}">
+                      
+                      </div>
+                  </div>
+              `);
+              });
 
-            console.log( "Ending game setup" );
+          
+          document.getElementById('close_modal_button').addEventListener('click', this.close_modal)            
+
+          this.createAsteroids(gamedatas.cards)
+          console.log( "Ending game setup" );
         },
 
         setupAsteroidListeners: function(args, reorder){ 
@@ -154,6 +146,9 @@ function (dojo, declare) {
         onClickPass: function(e,action){
           this.bgaPerformAction(action, { })
         },
+        onClickDone: function(e,action){
+          this.bgaPerformAction(action, { done: true})
+        },
 
         closeModalAndClearClickListeners: function(){
           this.close_modal();
@@ -187,16 +182,23 @@ function (dojo, declare) {
 
         biddingComplete: function(args){
           console.log("bidding complete", args);
-          var that = this;
+          document.querySelectorAll('.bids').forEach(b => b.remove())
+          document.querySelectorAll('.asteroid').forEach(b => b.remove())
         },
 
         marketRound: function(args){
-          console.log("market round", args);
-          const {player_cards,players} = args.args
-          this.addPlayerCardsToPlayersTable(player_cards, args.active_player)
-          this.updateMoney(players)
-          document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='market_pass'>PASS</button>")
-          document.getElementById('market_pass').addEventListener('click', e => this.onClickPass(e, 'sellOrPass'));
+          if(this.player_id == args.active_player){
+            console.log("market round", args);
+            const {player_cards,players} = args.args
+            this.addPlayerCardsToPlayersTable(player_cards, args.active_player)
+            this.updateMoney(players)
+            document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='market_pass'>PASS</button>")
+            document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='market_done'>FINISHED</button>")
+            document.getElementById('market_pass').addEventListener('click', e => this.onClickPass(e, 'actSellOrPass'));
+            document.getElementById('market_done').addEventListener('click', e => this.onClickDone(e, 'actSellOrPass'));
+          } else {
+            console.log("Not your market, yet.");
+          }
 
         },
 
@@ -213,11 +215,34 @@ function (dojo, declare) {
         },
 
         addPlayerCardsToPlayersTable(player_cards,player_id){
-          html += "<div class='cards'>"
+          this.clearPlayerCards(player_id)
+          let html = "<div class='cards'>"
           player_cards.forEach(c => { 
-            html += `<div class='card' id='card_${c.card_id}' data-id='${c.card_id}'></div>`
+            const val = parseInt(c.card_type_arg)
+            if( val <= 10 || val == 99){
+              html += `<div class='card playable' id='card_${c.card_id}' data-id='${c.card_id}'>${this.getCardReadout(c)}</div>`
+            } else {
+              html += `<div class='card hazard' id='card_${c.card_id}'>${this.getCardReadout(c)}</div>`
+            }
           })
           document.getElementById(`player_cards_${player_id}`).insertAdjacentHTML('beforeend', html)
+          document.querySelectorAll("#player_tables .playable").forEach(el => {
+            el.addEventListener('click', e => this.sellCard(e) )
+          })
+        },
+
+        clearPlayerCards(player_id){
+          const cards = document.querySelector(`#player_cards_${player_id} .cards`)
+          if(cards){ 
+            cards.remove()
+          }
+        },
+
+        sellCard(e){
+          const el = e.currentTarget
+          const id = el.getAttribute('data-id')
+          el.remove();
+          this.bgaPerformAction("actSellOrPass", { id: id})
         },
 
         openBidModal(e, args){
@@ -485,7 +510,49 @@ function (dojo, declare) {
           dojo.subscribe('surfaceScanResult', this, 'notif_surfaceScanResult');
           this.notifqueue.setSynchronous('surfaceScanResult', 100);
       
+          dojo.subscribe('Sell', this, 'notif_goodsSold');
+          this.notifqueue.setSynchronous('Sell', 100);
+                    
+          dojo.subscribe('newAsteroids', this, 'notif_newAsteroids');
+          this.notifqueue.setSynchronous('newAsteroids', 100);
         },  
+
+        notif_newAsteroids: function(notif){
+          var cards = notif.args.cards
+          console.log("notif_newAsteroids", notif)
+          this.createAsteroids(notif.args.cards)
+        },
+
+        createAsteroids: function(cards){
+          var last_asteroid = -1;
+          cards.map(function(v){ 
+            if(v.card_location_arg != last_asteroid){
+              last_asteroid = v.card_location_arg
+              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
+            }
+          })
+        },
+
+        notif_goodsSold: function(notif){
+          var market = Object.entries(notif.args.market)[0][1]
+          for (const [material, index] of Object.entries(market)) {
+            // Select the parent column
+            const column = document.getElementById(`market_column_${material}`);
+            if (!column) continue;
+
+            // Get all val_box_container elements in order
+            const boxes = column.querySelectorAll('.val_box_container');
+
+            // Remove existing 'current' classes
+            boxes.forEach(box => box.classList.remove('current'));
+
+            // Find the element by index (assuming index starts at 0)
+            const target = boxes[parseInt(index, 10)];
+            if (target) {
+                target.classList.add('current');
+            }
+          }
+        },
 
         notif_surfaceScanResult: function(notif){
           console.log("surface scan result", notif)

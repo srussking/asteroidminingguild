@@ -41,7 +41,7 @@ class Game extends \Table
         parent::__construct();
 
         $this->initGameStateLabels([
-            "my_first_global_variable" => 10,
+            "round" => 10,
             "my_second_global_variable" => 11,
             "my_first_game_variant" => 100,
             "my_second_game_variant" => 101,
@@ -53,18 +53,28 @@ class Game extends \Table
         self::$CARD_SUITS = [
             1 => [
                 'name' => clienttranslate('Iron'),
+                'db' => 'iron',
+                'inc' => 2
             ],
             2 => [
                 'name' => clienttranslate('Lead'),
+                'db' => 'lead',
+                'inc' => 3
             ],
             3 => [
                 'name' => clienttranslate('Copper'),
+                'db' => 'copper',
+                'inc' => 4
             ],
             4 => [
                 'name' => clienttranslate('Gold'),
+                'db' => 'gold',
+                'inc' => 5
             ],
             5 => [
                 'name' => clienttranslate('Joker'),
+                'db' => 'joker',
+                'inc' => 0
             ]
         ];
 
@@ -175,7 +185,11 @@ class Game extends \Table
     }
 
     function stNewAsteroids() {
-        // logic here, or just make it a pass-through for now
+        $this->notifyAllPlayers(
+          "newAsteroids",
+          clienttranslate('New asteroids appear!'),
+          $this->getAsteroids()
+        );
         $this->gamestate->nextState('nextDeepScan');
     }
 
@@ -184,14 +198,69 @@ class Game extends \Table
         self::error("stDeepScan");
     }
 
-    function stMarketComplete() {
+    function stGameEnd() {
         // logic here, or just make it a pass-through for now
-        self::error("stDeepScan");
+        self::error("stGameEnd");
+    }
+
+
+    function stMarketComplete() {
+      self::DbQuery("UPDATE `player` SET `passed` = 0");
+      $playerCount = $this->getPlayersNumber();
+      $vars = $this->getPlayerCountVariables($playerCount);
+      $current_round = (int) $this->getGameStateValue('round');
+      if($vars['rounds'] >= $current_round){
+        $this->setGameStateValue('round', $current_round + 1);
+        $this->createAsteroids();
+        $this->gamestate->nextState('newAsteroids');
+      } else {
+         $this->gamestate->nextState('gameEnd');
+      }
     }
 
     function stNextMarket() {
-        // logic here, or just make it a pass-through for now
-        self::error("stDeepScan");
+      $next_player = $this->nextMarketPlayer();
+      if($next_player !== null){
+        $this->gamestate->changeActivePlayer($next_player);
+        $this->gamestate->nextState('marketRound');
+      } else {
+        $this->gamestate->nextState('marketComplete');
+      }
+    }
+    function nextMarketPlayer() {
+      // Load all player info
+      $playersList = $this->getObjectListFromDB("
+          SELECT player_id, player_no, passed
+          FROM player
+      ");
+
+      // Reindex by player_id to ensure we have proper associative arrays
+      $players = [];
+      foreach ($playersList as $p) {
+        $players[(int)$p['player_id']] = $p;
+      }
+
+      // Sort players by turn order
+      uasort($players, function($a, $b) {
+          return $a['player_no'] - $b['player_no'];
+      });
+
+      $player_ids = array_keys($players);
+
+      $current_player_id = (int)$this->getActivePlayerId();
+      $current_index = array_search($current_player_id, $player_ids);
+      $n = count($player_ids);
+
+      for ($i = 1; $i <= $n; $i++) {
+        $idx = ($current_index + $i) % $n;
+        $next_player_id = $player_ids[$idx];
+        if ((int)$players[$next_player_id]['passed'] === 0) {
+            return (int)$next_player_id;
+        }
+      }
+
+      // All players have passed
+      return null;
     }
 
     function stBiddingComplete() {
@@ -363,23 +432,124 @@ class Game extends \Table
       $this->gamestate->nextState('nextBidder');
     }
 
-    function sellOrPass(?int $id){
-      if(isset($id)){ 
-        
+    function actSellOrPass(?int $id, ?bool $done){
+      if($id !== null){ 
+        $this->sellCard($id);
+      } else if($done === true){
+        $this->currentPlayerDone();
+      } 
+      
+      $this->gamestate->nextState('nextMarket');
+    }
+
+    function currentPlayerDone(){
+      $current_player_id = (int) $this->getCurrentPlayerId();
+      self::DbQuery("UPDATE `player` SET `passed` = 1 WHERE `player_id` = $current_player_id");
+    }
+
+    function sellCard(int $id){
+      $current_player_id = (int) $this->getCurrentPlayerId();
+      $card = $this->getObjectFromDB("
+        SELECT *
+        FROM `card`
+        WHERE `card_id` = $id AND `card_location_arg` = $current_player_id
+      ");
+
+      $card_type = (int) $card["card_type"];
+      $card_val = (int) $card["card_type_arg"];
+      $message = "";
+
+      $cards_in_market = $this->getObjectListFromDB("
+        SELECT *
+        FROM `card`
+        WHERE `card_location` = 'market' AND `card_type` = $card_type
+      ");
+
+      $current_market_val = 0;
+      foreach ($cards_in_market as $c){
+        $val = $c['card_type_arg'];
+        $current_market_val += $val;
+      }
+      $market_for_suit = $this->getMarketValueFor($card_type);
+      $card_market_value = $market_for_suit * $card_val;
+      if($card_val + $current_market_val > 5){
+        $this->sell($card, $card_market_value, $current_player_id);
+        $this->lowerMarket($card_type);
+        $message = clienttranslate('${player_name} has sold ${element} for ${val} and lowered the market');
       } else {
+        $this->sell($card, $card_market_value, $current_player_id);
+        $message = clienttranslate('${player_name} has sold ${element} for ${val}');
 
       }
+      $market = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
+
+      $this->notifyAllPlayers(
+        "Sell",
+        $message,
+        [
+          'player_id'   => $current_player_id,
+          'player_name' => $this->getActivePlayerName(),
+          'element' => self::$CARD_SUITS[$card_type]['name'],
+          'val' => $card_market_value,
+          'market' => $market
+        ]
+      );
+    }
+
+    function getMarketValueFor(int $card_type): int{
+      $suit = self::$CARD_SUITS[$card_type];
+      $market_db = $suit['db'];
+      $val = (int)$this->getUniqueValueFromDB("
+          SELECT $market_db 
+          FROM `market`
+      ");
+      return $val * $suit['inc'];
+    }
+
+    function sell($card, $market_value, $player_id){
+      $card_id = $card['card_id'];
+      self::DbQuery("
+        UPDATE `card`
+        SET `card_location` = 'market'
+        WHERE `card_id` = $card_id
+      ");
+      $money = (int)$this->getUniqueValueFromDB("
+          SELECT `money` 
+          FROM `player`
+          WHERE player_id = $player_id
+      ");
+      $new_money = $money + $market_value;
+      self::DbQuery("UPDATE `player` SET `money` = $new_money WHERE `player_id` = $player_id");
+
+    }
+
+    function lowerMarket(int $card_type){
+      $suit = self::$CARD_SUITS[$card_type];
+      $market_db = $suit['db'];
+      $val = (int)$this->getUniqueValueFromDB("
+          SELECT $market_db 
+          FROM `market`
+      ");
+      $next_val = $val - 1 >= 0 ? $val - 1 : 0;
+      self::DbQuery("UPDATE `market` SET $market_db = $next_val");
+
+      self::DbQuery("
+        UPDATE `card`
+        SET `card_location` = 'sold'
+        WHERE `card_location` = 'market' AND `card_type` = $card_type
+      ");
+
     }
 
     function setPlayerOutbid(int $player_id, int $outbid){
-      static::DbQuery("UPDATE `player` SET `outbid` = $outbid WHERE `player_id` = $player_id");
+      self::DbQuery("UPDATE `player` SET `outbid` = $outbid WHERE `player_id` = $player_id");
     }
 
     function bid(int $id, int $player_id, int $bid_amount, $prev_bid){
       if(!empty($prev_bid)){
-        static::DbQuery("UPDATE `asteroid_bid` SET `bid_amount` = $bid_amount, `player_id` = $player_id WHERE `asteroid_id` = $id");
+        self::DbQuery("UPDATE `asteroid_bid` SET `bid_amount` = $bid_amount, `player_id` = $player_id WHERE `asteroid_id` = $id");
       } else {
-        static::DbQuery("INSERT INTO asteroid_bid (asteroid_id, player_id, bid_amount)
+        self::DbQuery("INSERT INTO asteroid_bid (asteroid_id, player_id, bid_amount)
           VALUES ($id,$player_id,$bid_amount)");
       }
  
@@ -751,6 +921,7 @@ class Game extends \Table
         // Set the colors of the players with HTML color code. The default below is red/green/blue/orange/brown. The
         // number of colors defined here must correspond to the maximum number of players allowed for the gams.
         $gameinfos = $this->getGameinfos();
+        $this->setGameStateInitialValue('round', 1);
         $default_colors = $gameinfos['player_colors'];
 
         foreach ($players as $player_id => $player) {
@@ -769,14 +940,14 @@ class Game extends \Table
         //
         // NOTE: You can add extra field on player table in the database (see dbmodel.sql) and initialize
         // additional fields directly here.
-        static::DbQuery(
+        self::DbQuery(
             sprintf(
                 "INSERT INTO player (player_id, player_color, player_canal, player_name, player_avatar, money) VALUES %s",
                 implode(",", $query_values)
             )
         );
 
-        static::DbQuery("INSERT INTO market (iron, lead, copper, gold) VALUES (2,2,2,2)");
+        self::DbQuery("INSERT INTO market (iron, lead, copper, gold) VALUES (2,2,2,2)");
 
         $this->reattributeColorsBasedOnPreferences($players, $gameinfos["player_colors"]);
         $this->reloadPlayersBasicInfos();
@@ -807,6 +978,7 @@ class Game extends \Table
         $this->cards->shuffle('deck');
 
         $this->createAsteroids();
+
         // Activate first player once everything has been initialized and ready.
         $this->activeNextPlayer();
     }

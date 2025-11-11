@@ -65,9 +65,11 @@ $machinestates = [
     // Note: ID=2 => your first state
     2 => [
         "name" => "newAsteroids",
-        "description" => '',
-        "type" => "activeplayer",
+        "description" => 'New asteroids in range',
+        "type" => "game",
         "action" => "stNewAsteroids",
+        "args" => "getAsteroids",
+        "updateGameProgression" => true,
         "transitions" => ["nextDeepScan" => 12]
     ],
 
@@ -98,7 +100,6 @@ $machinestates = [
         "description" => '',
         "type" => "game",
         "action" => "stNextDeepScan",
-        "updateGameProgression" => true,
         "transitions" => ["surfaceScan" => 20, "deepScan" => 10 ]
     ],
 
@@ -108,7 +109,6 @@ $machinestates = [
         "descriptionmyturn" => clienttranslate('${you} must select an asteroid for a surface scan'),
         "type" => "activeplayer",
         "args" => "getAsteroids",
-        "updateGameProgression" => true,
         "possibleactions" => [
             // these actions are called from the front with bgaPerformAction, and matched to the function on the game.php file
             "actSurfaceScan", 
@@ -131,7 +131,6 @@ $machinestates = [
     "description" => '',
     "type" => "game",
     "action" => "stNextSurfaceScan",
-    "updateGameProgression" => true,
     "transitions" => ["auction" => 30, "surfaceScan" => 20 ]
   ],
 
@@ -170,7 +169,7 @@ $machinestates = [
     "type" => "activeplayer",
     "args" => "getMarket",
     "possibleactions" => [
-      "sellOrPass"
+      "actSellOrPass"
     ],
     "transitions" => ["nextMarket" => 41]
   ],
@@ -188,7 +187,7 @@ $machinestates = [
     "description" => '',
     "type" => "game",
     "action" => "stMarketComplete",
-    "transitions" => ["newAsteroids" => 2 ]
+    "transitions" => ["newAsteroids" => 2, "gameEnd" => 99 ]
   ],
 
 
