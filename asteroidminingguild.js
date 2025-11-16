@@ -61,7 +61,7 @@ function (dojo, declare) {
             var m = market_arr[i];
             var id = `market_column_${m.col}`
             var curr_val = parseInt(market[m.col])
-            document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"></div>`)
+            document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"><div class='title'>${m.col}</div></div>`)
             for(var j = 0; j < (pcv.rounds + 4) ; j++){ //rounds + num jokers + starting value
               var current = curr_val == j
               var val = j * m.inc
@@ -217,18 +217,47 @@ function (dojo, declare) {
         addPlayerCardsToPlayersTable(player_cards,player_id){
           this.clearPlayerCards(player_id)
           let html = "<div class='cards'>"
+          const that = this;
           player_cards.forEach(c => { 
             const val = parseInt(c.card_type_arg)
-            if( val <= 10 || val == 99){
-              html += `<div class='card playable' id='card_${c.card_id}' data-id='${c.card_id}'>${this.getCardReadout(c)}</div>`
+            const suit = parseInt(c.card_type)
+            if( val <= 10){
+              html += `<div class='card playable' id='card_${c.card_id}' data-id='${c.card_id}' data-suit='${suit}'>${this.getCardReadout(c)}</div>`
+
+            } else if(val == 99) {
+              html += `<div class='card playable joker' id='card_${c.card_id}' data-id='${c.card_id}'>${this.getCardReadout(c)}${that.getSuitSelectors(c)}</div>`
             } else {
               html += `<div class='card hazard' id='card_${c.card_id}'>${this.getCardReadout(c)}</div>`
             }
           })
           document.getElementById(`player_cards_${player_id}`).insertAdjacentHTML('beforeend', html)
           document.querySelectorAll("#player_tables .playable").forEach(el => {
-            el.addEventListener('click', e => this.sellCard(e) )
+            console.log("card sell click", el)
+            if(el.classList.contains('joker')){
+              el.addEventListener('click', e => this.toggleJokerSuits(e) )
+            } else {
+              el.addEventListener('click', e => this.sellCard(e) )
+            }          
           })
+
+          document.querySelectorAll("#player_tables .joker_suits .suit").forEach(el => {
+            el.addEventListener('click', e => this.sellCard(e) )        
+          })
+        },
+
+        toggleJokerSuits(e){
+          var el = e.currentTarget
+          console.log('toggleJokerSuits', el)
+          el.classList.toggle('open')
+        },
+        
+        getSuitSelectors(card){
+          html = `<div class='joker_suits'>`
+          document.querySelectorAll("#market .title").forEach((el,idx) => { 
+            html += `<div class='suit' data-suit='${idx + 1}' data-id=${card.card_id}>${el.textContent}</div>`
+          })
+          html += '</div>'
+          return html;
         },
 
         clearPlayerCards(player_id){
@@ -241,8 +270,9 @@ function (dojo, declare) {
         sellCard(e){
           const el = e.currentTarget
           const id = el.getAttribute('data-id')
-          el.remove();
-          this.bgaPerformAction("actSellOrPass", { id: id})
+          const suit = el.getAttribute('data-suit')
+          document.getElementById(`card_${id}`).remove();
+          this.bgaPerformAction("actSellOrPass", { id: id, suit: suit})
         },
 
         openBidModal(e, args){

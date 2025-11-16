@@ -432,9 +432,9 @@ class Game extends \Table
       $this->gamestate->nextState('nextBidder');
     }
 
-    function actSellOrPass(?int $id, ?bool $done){
+    function actSellOrPass(?int $id, ?bool $done, ?int $suit){
       if($id !== null){ 
-        $this->sellCard($id);
+        $this->sellCard($id,$suit);
       } else if($done === true){
         $this->currentPlayerDone();
       } 
@@ -447,7 +447,7 @@ class Game extends \Table
       self::DbQuery("UPDATE `player` SET `passed` = 1 WHERE `player_id` = $current_player_id");
     }
 
-    function sellCard(int $id){
+    function sellCard(int $id, int $suit){
       $current_player_id = (int) $this->getCurrentPlayerId();
       $card = $this->getObjectFromDB("
         SELECT *
@@ -472,14 +472,18 @@ class Game extends \Table
       }
       $market_for_suit = $this->getMarketValueFor($card_type);
       $card_market_value = $market_for_suit * $card_val;
-      if($card_val + $current_market_val > 5){
+      $element = self::$CARD_SUITS[$card_type]['name'];
+      if($card_val == 99){
+        $this->sellJoker($card,$suit);
+        $element = self::$CARD_SUITS[$suit]['name'];
+        $message = clienttranslate('${player_name} has manipulated the market for ${element} increasing the value');
+      } else if($card_val + $current_market_val > 5){
         $this->sell($card, $card_market_value, $current_player_id);
         $this->lowerMarket($card_type);
         $message = clienttranslate('${player_name} has sold ${element} for ${val} and lowered the market');
       } else {
         $this->sell($card, $card_market_value, $current_player_id);
         $message = clienttranslate('${player_name} has sold ${element} for ${val}');
-
       }
       $market = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
 
@@ -489,7 +493,7 @@ class Game extends \Table
         [
           'player_id'   => $current_player_id,
           'player_name' => $this->getActivePlayerName(),
-          'element' => self::$CARD_SUITS[$card_type]['name'],
+          'element' => $element,
           'val' => $card_market_value,
           'market' => $market
         ]
@@ -499,6 +503,10 @@ class Game extends \Table
     function getMarketValueFor(int $card_type): int{
       $suit = self::$CARD_SUITS[$card_type];
       $market_db = $suit['db'];
+
+      if($market_db === 'joker'){
+        return 0;
+      }
       $val = (int)$this->getUniqueValueFromDB("
           SELECT $market_db 
           FROM `market`
@@ -521,6 +529,24 @@ class Game extends \Table
       $new_money = $money + $market_value;
       self::DbQuery("UPDATE `player` SET `money` = $new_money WHERE `player_id` = $player_id");
 
+    }
+
+    function sellJoker($card, $card_type){
+      $suit = self::$CARD_SUITS[$card_type];
+      $market_db = $suit['db'];
+      $val = (int)$this->getUniqueValueFromDB("
+          SELECT $market_db 
+          FROM `market`
+      ");
+      $next_val = $val += 1;
+      self::DbQuery("UPDATE `market` SET $market_db = $next_val");
+
+      $card_id = $card['card_id'];
+      self::DbQuery("
+        UPDATE `card`
+        SET `card_location` = 'sold'
+        WHERE `card_id` = $card_id
+      ");
     }
 
     function lowerMarket(int $card_type){

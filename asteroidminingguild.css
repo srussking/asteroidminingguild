@@ -94,6 +94,10 @@ body#ebd-body {
   padding: 12px 6px;
 }
 
+.market_column .title {
+  text-transform: capitalize;
+}
+
 .board_market_container {
   display: flex;
 
@@ -215,4 +219,22 @@ body#ebd-body {
   right: 0;
   text-align: right;
   border: 1px solid white;
+}
+
+.card .joker_suits {
+  display: none;
+  position: relative;
+  top: -100px;
+}
+
+.card.open .joker_suits {
+  display: flex;
+}
+
+.card .joker_suits .suit {
+  border: 1px solid yellow;
+  padding: 5px;
+  text-align: center;
+  min-width: 50px;
+  text-transform: capitalize;
 }
