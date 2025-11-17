@@ -80,7 +80,7 @@ $machinestates = [
         "descriptionmyturn" => clienttranslate('${you} must select an asteroid for a deep scan'),
         "type" => "activeplayer",
         "action" => "stDeepScan",
-        "args" => "getAsteroids", 
+        "args" => "getKnowledge", 
         "possibleactions" => array( 'actDeepScan' ),
         "transitions" => ["reorderBoard" => 11]
     ],
@@ -108,7 +108,7 @@ $machinestates = [
         "description" => clienttranslate('${actplayer} must select an asteroid for a surface scan'),
         "descriptionmyturn" => clienttranslate('${you} must select an asteroid for a surface scan'),
         "type" => "activeplayer",
-        "args" => "getAsteroids",
+        "args" => "getKnowledge",
         "possibleactions" => [
             // these actions are called from the front with bgaPerformAction, and matched to the function on the game.php file
             "actSurfaceScan", 

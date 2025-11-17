@@ -110,6 +110,19 @@ body#ebd-body {
   display: flex;
   align-items: start;
   gap: 1em;
+  position: relative;
+}
+
+#knowledge_btn {
+  position: absolute;
+  bottom: 0;
+}
+
+.asteroid_num {
+  text-align: center;
+  width: 100%;
+  font-size: 40px;
+  color: #fff;
 }
 
 .box {
@@ -134,6 +147,8 @@ body#ebd-body {
   width: 150px;
   border: 1px solid slategrey;
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .cards {

@@ -50,7 +50,7 @@ function (dojo, declare) {
           this.setupNotifications();
 
           document.getElementById('game_play_area').insertAdjacentHTML('beforeend', `
-              <div id="table"><div class="board_market_container"><div id="bidding_boards"></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
+              <div id="table"><div class="board_market_container"><div id="bidding_boards"><button id="knowledge_btn">Prior Knowledge</button></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
           `);
           var num_players = Object.entries(gamedatas.players).length
           var pcv = gamedatas.player_count_variables
@@ -110,6 +110,32 @@ function (dojo, declare) {
           } else {
             //no listeners for you cove
           }
+        },
+
+        setupKnowledge: function(knowledge){
+          if(knowledge && this.isCurrentPlayerActive()){
+            //remove any previous knowledge
+            var el = document.getElementById('knowledge_btn')
+            const newDiv = el.cloneNode(true); // true clones child elements too
+            el.parentNode.replaceChild(newDiv, el)
+            
+            document.getElementById('knowledge_btn').addEventListener('click', e => this.openKnowledge(knowledge))
+          }
+        },
+
+        openKnowledge: function(knowledge){
+          console.log("open knowledge", knowledge);
+          var asteroid_knowledge = JSON.parse(knowledge[0].knowledge)
+          var html = `
+            <div class='knowledge_modal'>
+              <div class='knowledge'>
+                ${asteroid_knowledge.deep_scan ? this.getKnowledgeHtml(asteroid_knowledge.deep_scan.cards, true) : ""}
+                ${asteroid_knowledge.surface_scan ? this.getKnowledgeHtml(asteroid_knowledge.surface_scan.card, true) : ""}
+              </div>
+            </div>
+          `
+
+         this.show_modal(`Prior Knowledge`, html) 
         },
 
         setupSurfaceScanListeners: function(){
@@ -306,9 +332,12 @@ function (dojo, declare) {
 
         },
 
-        getKnowledgeHtml(cards){
+        getKnowledgeHtml(cards, inc_asteroid){
           var that = this;
           var html = ''
+          if(inc_asteroid){
+            html += `<div class='knowledge_asteroid_num'>Asteroid: ${cards[0]['card_location_arg']}</div>`;
+          }
           if(cards.length == 1){
             html += `<div class='scan surface_scan'>Surface Scan: <ol><li> ${this.getCardReadout(cards[0])}</li></ol></div>`
           } else if(cards.length > 1) {
@@ -395,12 +424,14 @@ function (dojo, declare) {
               break;  
             case 'surfaceScan':
               this.setupSurfaceScanListeners();
+              this.setupKnowledge(args.args.knowledge)
               break;
             case 'displaySurfaceScan':
               this.displaySurfaceScan(args);
               break;
             case 'auction':
               this.setupBidding(args);
+              this.setupKnowledge(args.args.knowledge)
               break;
             case 'biddingComplete':
               this.biddingComplete(args);
@@ -558,7 +589,7 @@ function (dojo, declare) {
           cards.map(function(v){ 
             if(v.card_location_arg != last_asteroid){
               last_asteroid = v.card_location_arg
-              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='cards'></div></div>`)
+              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='asteroid_num'>${v.card_location_arg}</div><div class='cards'></div></div>`)
             }
           })
         },

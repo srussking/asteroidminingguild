@@ -918,7 +918,8 @@ class Game extends \Table
 
   protected function getPlayerCountVariables($num): array {
     if ($num === 3) {
-        return ['cards' => 3, 'boards' => 2, 'rounds' => 9];
+        // 9
+        return ['cards' => 3, 'boards' => 2, 'rounds' => 2];
     } else if ($num === 4) {
         return ['cards' => 2, 'boards' => 3, 'rounds' => 9];
     } else if ($num === 5) {

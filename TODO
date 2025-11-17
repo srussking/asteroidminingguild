@@ -1,10 +1,7 @@
-- Sell joker needs way to select suit
-- Fix the sold some element message to use appropriate suit
-- Market complete not looping properly
 - Need a way to show knowledge
-- market needs associated element
 - div button styling for a start
 - bid click listeners need to be removed after bid
 - remove click listeners after sell
 - Need a running total for current cards in market
 - player stats (times sold, num hazards)
+- when it is not a player's turn reloading the page will remove the cards from their tableau
