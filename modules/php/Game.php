@@ -199,8 +199,42 @@ class Game extends \Table
     }
 
     function stGameEnd() {
-        // logic here, or just make it a pass-through for now
-        self::error("stGameEnd");
+      self::error("stGameEnd");
+      parent::stGameEnd();
+    }
+
+    function updateScore(int $player_id){
+      $money = (int)$this->getUniqueValueFromDB("
+          SELECT `money` 
+          FROM `player`
+          WHERE player_id = $player_id
+      ");
+      $cards = $this->getObjectListFromDB("
+          SELECT *
+          FROM `card`
+          WHERE `card_location` = 'player'
+          AND `card_location_arg` = $player_id
+      ");
+      $cards_sold = $this->getObjectListFromDB("
+          SELECT *
+          FROM `card`
+          WHERE `card_location` = 'sold'
+          AND `card_location_arg` = $player_id
+      ");
+      $neg_total = 0;
+      foreach($cards as $card){
+        $val = (int) $card['card_type_arg'];
+        if($val > 10 && $val < 15){
+          $neg_val = ($val - 10) * 5;
+          $neg_total += $neg_val;
+        } 
+      }
+      $final_score = $money - $neg_total;
+      self::error("stGameEnd: player_id: ".$player_id. ", score: ".$final_score );
+
+      self::DbQuery("UPDATE `player` SET `player_score` = $final_score, `player_score_aux` = $neg_total WHERE `player_id` = $player_id");
+      $this->setStat($final_score, 'endScore', $player_id);
+      $this->setStat($neg_total, 'hazards', $player_id);
     }
 
 
@@ -209,7 +243,7 @@ class Game extends \Table
       $playerCount = $this->getPlayersNumber();
       $vars = $this->getPlayerCountVariables($playerCount);
       $current_round = (int) $this->getGameStateValue('round');
-      if($vars['rounds'] >= $current_round){
+      if($vars['rounds'] > $current_round){
         $this->setGameStateValue('round', $current_round + 1);
         $this->createAsteroids();
         $this->gamestate->nextState('newAsteroids');
@@ -444,6 +478,7 @@ class Game extends \Table
 
     function currentPlayerDone(){
       $current_player_id = (int) $this->getCurrentPlayerId();
+      $this->updateScore($current_player_id);
       self::DbQuery("UPDATE `player` SET `passed` = 1 WHERE `player_id` = $current_player_id");
     }
 
@@ -476,13 +511,17 @@ class Game extends \Table
       if($card_val == 99){
         $this->sellJoker($card,$suit);
         $element = self::$CARD_SUITS[$suit]['name'];
+        $this->incStat(1, "jokersUsed", $current_player_id);
         $message = clienttranslate('${player_name} has manipulated the market for ${element} increasing the value');
       } else if($card_val + $current_market_val > 5){
         $this->sell($card, $card_market_value, $current_player_id);
         $this->lowerMarket($card_type);
+        $this->incStat(1, "marketsReduced", $current_player_id);
+        $this->incStat(1, "cardsSold", $current_player_id);
         $message = clienttranslate('${player_name} has sold ${element} for ${val} and lowered the market');
       } else {
         $this->sell($card, $card_market_value, $current_player_id);
+        $this->incStat(1, "cardsSold", $current_player_id);
         $message = clienttranslate('${player_name} has sold ${element} for ${val}');
       }
       $market = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
@@ -919,7 +958,7 @@ class Game extends \Table
   protected function getPlayerCountVariables($num): array {
     if ($num === 3) {
         // 9
-        return ['cards' => 3, 'boards' => 2, 'rounds' => 2];
+        return ['cards' => 3, 'boards' => 2, 'rounds' => 1];
     } else if ($num === 4) {
         return ['cards' => 2, 'boards' => 3, 'rounds' => 9];
     } else if ($num === 5) {
@@ -1003,6 +1042,15 @@ class Game extends \Table
 
         $this->cards->createCards($cards, 'deck');
         $this->cards->shuffle('deck');
+
+        //set all the stats to 0
+        foreach ($this->loadPlayersBasicInfos() as $player_id => $player) {
+          $this->setStat(0, 'endScore', $player_id);
+          $this->setStat(0, 'hazards', $player_id);
+          $this->setStat(0, 'cardsSold', $player_id);
+          $this->setStat(0, 'jokersUsed', $player_id);
+          $this->setStat(0, 'marketsReduced', $player_id);
+        }
 
         $this->createAsteroids();
 

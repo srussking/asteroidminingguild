@@ -1,1 +1,29 @@
-{}
+{
+  "player": {
+    "endScore": {
+      "type": "int",
+      "name": "Final wealth",
+      "id": 10
+    },
+    "hazards": {
+      "type": "int",
+      "name": "Total penalties",
+      "id": 11
+    },
+    "cardsSold": {
+      "type": "int",
+      "name": "Total cards sold",
+      "id": 12
+    },
+    "jokersUsed": {
+      "type": "int",
+      "name": "Times markets increased",
+      "id": 13
+    },
+    "marketsReduced": {
+      "type": "int",
+      "name": "Times markets reduced",
+      "id": 14
+    }
+  }
+}
