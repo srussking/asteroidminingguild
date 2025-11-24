@@ -61,7 +61,8 @@ function (dojo, declare) {
             var m = market_arr[i];
             var id = `market_column_${m.col}`
             var curr_val = parseInt(market[m.col])
-            document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"><div class='title'>${m.col}</div></div>`)
+            var current_market_status = this.getMarketStatus(gamedatas.market_cards, i + 1)
+            document.getElementById('market').insertAdjacentHTML('beforeend', `<div id="${id}" class="market_column"><div class='market_status'>(${current_market_status})</div><div class='title'>${m.col}</div></div>`)
             for(var j = 0; j < (pcv.rounds + 4) ; j++){ //rounds + num jokers + starting value
               var current = curr_val == j
               var val = j * m.inc
@@ -73,27 +74,42 @@ function (dojo, declare) {
           
           // Setting up player boards
           Object.values(gamedatas.players).forEach(player => {
-              // example of setting up players boards
-              this.getPlayerPanelElement(player.id).insertAdjacentHTML('beforeend', `
-                  <div id="player_counter_${player.id}"><div class="space_bucks">ß ${player.money}</div></div>
-              `);
+            // example of setting up players boards
+            this.getPlayerPanelElement(player.id).insertAdjacentHTML('beforeend', `
+                <div id="player_counter_${player.id}"><div class="space_bucks">ß ${player.money}</div></div>
+            `);
 
-              // example of adding a div for each player
-              document.getElementById('player_tables').insertAdjacentHTML('beforeend', `
-                  <div id="player_table_${player.id}">
-                      <strong>${player.name}</strong>
-                      <div id="player_cards_${player.id}">
-                      
-                      </div>
-                  </div>
-              `);
-              });
+            // example of adding a div for each player
+            document.getElementById('player_tables').insertAdjacentHTML('beforeend', `
+                <div id="player_table_${player.id}">
+                    <strong>${player.name}</strong>
+                    <div id="player_cards_${player.id}">
+                    
+                    </div>
+                </div>
+            `);
 
+
+          });
+          var pid = this.player_id
+          const player_cards = gamedatas.player_cards.filter(v => pid == v.card_location_arg) 
+          this.addPlayerCardsToPlayersTable(player_cards, pid, false);
           
           document.getElementById('close_modal_button').addEventListener('click', this.close_modal)            
 
           this.createAsteroids(gamedatas.cards)
+    
           console.log( "Ending game setup" );
+        },
+
+        getMarketStatus(cards,col){
+          var status = 0;
+          cards.map(v => {
+            if(parseInt(v.card_type) === col){
+              status += parseInt(v.card_type_arg)
+            }
+          })
+          return status;
         },
 
         setupAsteroidListeners: function(args, reorder){ 
@@ -216,7 +232,7 @@ function (dojo, declare) {
           if(this.player_id == args.active_player){
             console.log("market round", args);
             const {player_cards,players} = args.args
-            this.addPlayerCardsToPlayersTable(player_cards, args.active_player)
+            this.addPlayerCardsToPlayersTable(player_cards, args.active_player,true)
             this.updateMoney(players)
             document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='market_pass'>PASS</button>")
             document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='market_done'>FINISHED</button>")
@@ -240,7 +256,8 @@ function (dojo, declare) {
           })
         },
 
-        addPlayerCardsToPlayersTable(player_cards,player_id){
+        addPlayerCardsToPlayersTable(player_cards,player_id,can_play){
+          
           this.clearPlayerCards(player_id)
           let html = "<div class='cards'>"
           const that = this;
@@ -257,18 +274,20 @@ function (dojo, declare) {
             }
           })
           document.getElementById(`player_cards_${player_id}`).insertAdjacentHTML('beforeend', html)
-          document.querySelectorAll("#player_tables .playable").forEach(el => {
-            console.log("card sell click", el)
-            if(el.classList.contains('joker')){
-              el.addEventListener('click', e => this.toggleJokerSuits(e) )
-            } else {
-              el.addEventListener('click', e => this.sellCard(e) )
-            }          
-          })
+          if(can_play){
+            document.querySelectorAll("#player_tables .playable").forEach(el => {
+              console.log("card sell click", el)
+              if(el.classList.contains('joker')){
+                el.addEventListener('click', e => this.toggleJokerSuits(e) )
+              } else {
+                el.addEventListener('click', e => this.sellCard(e) )
+              }          
+            })
 
-          document.querySelectorAll("#player_tables .joker_suits .suit").forEach(el => {
-            el.addEventListener('click', e => this.sellCard(e) )        
-          })
+            document.querySelectorAll("#player_tables .joker_suits .suit").forEach(el => {
+              el.addEventListener('click', e => this.sellCard(e) )        
+            })
+          }
         },
 
         toggleJokerSuits(e){
@@ -596,6 +615,7 @@ function (dojo, declare) {
 
         notif_goodsSold: function(notif){
           var market = Object.entries(notif.args.market)[0][1]
+          var that = this;
           for (const [material, index] of Object.entries(market)) {
             // Select the parent column
             const column = document.getElementById(`market_column_${material}`);
@@ -612,7 +632,15 @@ function (dojo, declare) {
             if (target) {
                 target.classList.add('current');
             }
+           
           }
+
+          var columns = document.querySelectorAll('#market .market_column')
+          columns.forEach((c,i) => {
+            var status = this.getMarketStatus(notif.args.market_cards, i + 1);
+            var col_market_status = c.querySelector('.market_status')
+            col_market_status.innerHTML = `(${status})`;
+          })
         },
 
         notif_surfaceScanResult: function(notif){

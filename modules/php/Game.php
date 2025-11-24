@@ -198,10 +198,10 @@ class Game extends \Table
         self::error("stDeepScan");
     }
 
-    function stGameEnd() {
-      self::error("stGameEnd");
-      parent::stGameEnd();
-    }
+    // function stGameEnd() {
+    //   self::error("stGameEnd");
+    //   parent::stGameEnd();
+    // }
 
     function updateScore(int $player_id){
       $money = (int)$this->getUniqueValueFromDB("
@@ -526,6 +526,13 @@ class Game extends \Table
       }
       $market = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
 
+      $market_cards = $this->getObjectListFromDB("
+          SELECT *
+          FROM `card`
+          WHERE `card_location` = 'market'
+          ORDER BY card_type ASC
+      ");
+
       $this->notifyAllPlayers(
         "Sell",
         $message,
@@ -534,7 +541,8 @@ class Game extends \Table
           'player_name' => $this->getActivePlayerName(),
           'element' => $element,
           'val' => $card_market_value,
-          'market' => $market
+          'market' => $market,
+          'market_cards' => $market_cards
         ]
       );
     }
@@ -722,6 +730,7 @@ class Game extends \Table
           AND `card_location_arg` = $player_id
           ORDER BY card_location_arg ASC, card_order ASC
       ");
+
       return $result;
     }
 
@@ -950,6 +959,20 @@ class Game extends \Table
             ORDER BY card_location_arg ASC, card_order ASC
         ");
 
+        $result['player_cards'] = $this->getObjectListFromDB("
+            SELECT *
+            FROM `card`
+            WHERE `card_location` = 'player'
+            ORDER BY card_order ASC
+        ");
+
+        $result["market_cards"] = $this->getObjectListFromDB("
+            SELECT *
+            FROM `card`
+            WHERE `card_location` = 'market'
+            ORDER BY card_type ASC
+        ");
+
         // TODO: Gather all information about current game situation (visible by player $current_player_id).
 
         return $result;
@@ -958,7 +981,7 @@ class Game extends \Table
   protected function getPlayerCountVariables($num): array {
     if ($num === 3) {
         // 9
-        return ['cards' => 3, 'boards' => 2, 'rounds' => 1];
+        return ['cards' => 3, 'boards' => 2, 'rounds' => 9];
     } else if ($num === 4) {
         return ['cards' => 2, 'boards' => 3, 'rounds' => 9];
     } else if ($num === 5) {
@@ -1051,6 +1074,8 @@ class Game extends \Table
           $this->setStat(0, 'jokersUsed', $player_id);
           $this->setStat(0, 'marketsReduced', $player_id);
         }
+
+
 
         $this->createAsteroids();
 

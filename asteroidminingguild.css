@@ -253,3 +253,14 @@ body#ebd-body {
   min-width: 50px;
   text-transform: capitalize;
 }
+
+button {
+  padding: 10px 20px;
+  border: 1px solid #333;
+  border-radius: 5px;
+  background-color: white;
+  color: black;
+  cursor: pointer;
+  max-width: 150px;
+  margin: 0 6px;
+}
