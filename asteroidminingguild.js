@@ -50,15 +50,18 @@ function (dojo, declare) {
           this.setupNotifications();
 
           document.getElementById('game_play_area').insertAdjacentHTML('beforeend', `
-              <div id="table"><div class="board_market_container"><div id="bidding_boards"><button id="knowledge_btn">Prior Knowledge</button></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
+              <div id="table"><div class="board_market_container"><div id="bidding_boards"><div id="asteroids"></div><button class="disabled" id="knowledge_btn">Prior Knowledge</button></div><div class="market_wrapper"><div id="market"></div></div></div><div id="player_tables"></div></div>
           `);
           var num_players = Object.entries(gamedatas.players).length
           var pcv = gamedatas.player_count_variables
           var market_col = gamedatas.market
           var market = Object.entries(market_col)[0][1]
-          var market_arr = [{col: "iron", inc: 2},{col: "lead", inc: 3},{col: "copper", inc: 4},{col: "gold", inc: 5}]
-          for(var i = 0; i < market_arr.length; i++){
-            var m = market_arr[i];
+          this.market_arr = [{col: "iron", inc: 2, name: "Iron"},
+            {col: "lead", inc: 3, name: "Lead"},
+            {col: "copper", inc: 4, name: "Copper"},
+            {col: "gold", inc: 5, name: "Gold"}]
+          for(var i = 0; i < this.market_arr.length; i++){
+            var m = this.market_arr[i];
             var id = `market_column_${m.col}`
             var curr_val = parseInt(market[m.col])
             var current_market_status = this.getMarketStatus(gamedatas.market_cards, i + 1)
@@ -155,6 +158,11 @@ function (dojo, declare) {
         },
 
         setupSurfaceScanListeners: function(){
+          if(this.isCurrentPlayerActive()){
+            document.getElementById('knowledge_btn').classList.remove('disabled')
+          } else {
+            document.getElementById('knowledge_btn').classList.add('disabled')
+          }
           document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.onClickAsteroid(e, "actSurfaceScan")));
         },
 
@@ -209,8 +217,10 @@ function (dojo, declare) {
             document.querySelectorAll('.asteroid').forEach(a => a.addEventListener('click', e => this.openBidModal(e,args)));
             document.getElementById('generalactions').insertAdjacentHTML('beforeend',"<button id='auction_pass'>PASS</button>")
             document.getElementById('auction_pass').addEventListener('click', e => this.onClickPass(e, 'actBidOrPass'));
-  
+            document.getElementById('knowledge_btn').classList.remove('disabled')
+
           } else {
+            document.getElementById('knowledge_btn').classList.add('disabled')
             const el = document.getElementById('auction_pass')
             if(el){
               el.remove()
@@ -226,6 +236,7 @@ function (dojo, declare) {
           console.log("bidding complete", args);
           document.querySelectorAll('.bids').forEach(b => b.remove())
           document.querySelectorAll('.asteroid').forEach(b => b.remove())
+          document.getElementById('knowledge_btn').classList.add('disabled')
         },
 
         marketRound: function(args){
@@ -595,6 +606,9 @@ function (dojo, declare) {
                     
           dojo.subscribe('newAsteroids', this, 'notif_newAsteroids');
           this.notifqueue.setSynchronous('newAsteroids', 100);
+
+          dojo.subscribe('marketIncrease', this, 'notif_marketIncrease');
+          this.notifqueue.setSynchronous('marketIncrease', 100);
         },  
 
         notif_newAsteroids: function(notif){
@@ -608,13 +622,17 @@ function (dojo, declare) {
           cards.map(function(v){ 
             if(v.card_location_arg != last_asteroid){
               last_asteroid = v.card_location_arg
-              document.getElementById('bidding_boards').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='asteroid_num'>${v.card_location_arg}</div><div class='cards'></div></div>`)
+              document.getElementById('asteroids').insertAdjacentHTML('beforeend', `<div id='asteroid_${v.card_location_arg}' data-id='${v.card_location_arg}' class='asteroid'><div class='asteroid_num'>${v.card_location_arg}</div><div class='cards'></div></div>`)
             }
           })
         },
 
-        notif_goodsSold: function(notif){
-          var market = Object.entries(notif.args.market)[0][1]
+        notif_marketIncrease: function(notif){
+          var market = Object.entries(notif.args.market)[0][1];
+          this.adjustMarket(market)
+        },
+
+        adjustMarket: function(market,market_cards){
           var that = this;
           for (const [material, index] of Object.entries(market)) {
             // Select the parent column
@@ -632,15 +650,22 @@ function (dojo, declare) {
             if (target) {
                 target.classList.add('current');
             }
-           
-          }
 
-          var columns = document.querySelectorAll('#market .market_column')
-          columns.forEach((c,i) => {
-            var status = this.getMarketStatus(notif.args.market_cards, i + 1);
-            var col_market_status = c.querySelector('.market_status')
-            col_market_status.innerHTML = `(${status})`;
-          })
+          }
+          if(market_cards){
+            var columns = document.querySelectorAll('#market .market_column')
+            columns.forEach((c,i) => {
+              var status = this.getMarketStatus(market_cards, i + 1);
+              var col_market_status = c.querySelector('.market_status')
+              col_market_status.innerHTML = `(${status})`;
+            })
+          }
+        },
+
+        notif_goodsSold: function(notif){
+          var market = Object.entries(notif.args.market)[0][1];
+          var market_cards = notif.args.market_cards
+          this.adjustMarket(market, market_cards)
         },
 
         notif_surfaceScanResult: function(notif){
@@ -685,7 +710,19 @@ function (dojo, declare) {
         }, 
 
         getCardReadout: function(card) {
-          return `Suit ${card.card_type}, Value ${card.card_type_arg}`
+          var card_type = parseInt(card.card_type) - 1
+          if(card_type === 4){
+            return "Joker"
+          } else {
+            var suit = this.market_arr[card_type].name
+            var value = parseInt(card.card_type_arg)
+            if(value > 10){
+              suit = "Hazard"
+              value = -5 * (value - 10)
+            }
+            return `<span class='card_suit ${suit}'>${suit}</span>: <span class='card_val'>${value}</span>`
+          }
+          
         },
 
         onReorderDone: function(e){

@@ -237,6 +237,26 @@ class Game extends \Table
       $this->setStat($neg_total, 'hazards', $player_id);
     }
 
+    function increaseMarket(){
+      self::DbQuery("
+        UPDATE `market`
+        SET 
+            `lead` = `lead` + 1,
+            `iron` = `iron` + 1,
+            `copper` = `copper` + 1,
+            `gold` = `gold` + 1
+      ");
+
+      $market = $this->getCollectionFromDB("SELECT `iron`,`lead`,`copper`,`gold` from `market`");
+
+      $this->notifyAllPlayers(
+        "marketIncrease",
+        clienttranslate('Demand has increased'),
+        [
+          'market' => $market
+        ]
+      );
+    }
 
     function stMarketComplete() {
       self::DbQuery("UPDATE `player` SET `passed` = 0");
@@ -245,6 +265,7 @@ class Game extends \Table
       $current_round = (int) $this->getGameStateValue('round');
       if($vars['rounds'] > $current_round){
         $this->setGameStateValue('round', $current_round + 1);
+        $this->increaseMarket();
         $this->createAsteroids();
         $this->gamestate->nextState('newAsteroids');
       } else {
@@ -354,7 +375,7 @@ class Game extends \Table
           `knowledge` = null
         ");
 
-        self::DbQuery("TRUNCATE TABLE asteroid_bid");
+        self::DbQuery("DELETE FROM asteroid_bid");
 
         self::DbQuery("UPDATE `asteroid` SET 
           `location` = 'beyond'
@@ -990,16 +1011,6 @@ class Game extends \Table
         return ['cards' => 2, 'boards' => 5, 'rounds' => 5];
     }
   }
-
-    /**
-     * Returns the game name.
-     *
-     * IMPORTANT: Please do not modify.
-     */
-    protected function getGameName()
-    {
-        return "asteroidminingguild";
-    }
 
     /**
      * This method is called only once, when a new game is launched. In this method, you must setup the game
